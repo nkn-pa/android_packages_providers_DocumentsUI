@@ -47,11 +47,11 @@ import com.android.documentsui.SharedInputHandler;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.base.RootInfo;
-import com.android.documentsui.base.ScopedPreferences;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
 import com.android.documentsui.clipping.DocumentClipper;
 import com.android.documentsui.dirlist.AnimationView.AnimationType;
+import com.android.documentsui.prefs.ScopedPreferences;
 import com.android.documentsui.dirlist.DirectoryFragment;
 import com.android.documentsui.selection.SelectionManager;
 import com.android.documentsui.services.FileOperationService;
@@ -154,12 +154,15 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
             final int opType = intent.getIntExtra(
                     FileOperationService.EXTRA_OPERATION_TYPE,
                     FileOperationService.OPERATION_COPY);
-            final ArrayList<DocumentInfo> srcList =
-                    intent.getParcelableArrayListExtra(FileOperationService.EXTRA_SRC_LIST);
+            final ArrayList<DocumentInfo> docList =
+                    intent.getParcelableArrayListExtra(FileOperationService.EXTRA_FAILED_DOCS);
+            final ArrayList<DocumentInfo> uriList =
+                    intent.getParcelableArrayListExtra(FileOperationService.EXTRA_FAILED_URIS);
             OperationDialogFragment.show(
                     getFragmentManager(),
                     dialogType,
-                    srcList,
+                    docList,
+                    uriList,
                     mState.stack,
                     opType);
         }

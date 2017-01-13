@@ -26,23 +26,23 @@ import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
 
-import com.android.documentsui.clipping.UrisSupplier;
 import com.android.documentsui.Metrics;
 import com.android.documentsui.R;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
+import com.android.documentsui.clipping.UrisSupplier;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.FileNotFoundException;
 
-final class DeleteJob extends Job {
+import javax.annotation.Nullable;
+
+final class DeleteJob extends ResolvedResourcesJob {
 
     private static final String TAG = "DeleteJob";
 
-    private volatile int mDocsProcessed = 0;
+    private final Uri mParentUri;
 
-    Uri mSrcParent;
+    private volatile int mDocsProcessed = 0;
     /**
      * Moves files to a destination identified by {@code destination}.
      * Performs most work by delegating to CopyJob, then deleting
@@ -50,10 +50,10 @@ final class DeleteJob extends Job {
      *
      * @see @link {@link Job} constructor for most param descriptions.
      */
-    DeleteJob(Context service, Listener listener, String id, Uri srcParent, DocumentStack stack,
-            UrisSupplier srcs) {
+    DeleteJob(Context service, Listener listener, String id, DocumentStack stack,
+            UrisSupplier srcs, @Nullable Uri srcParent) {
         super(service, listener, id, OPERATION_DELETE, stack, srcs);
-        mSrcParent = srcParent;
+        mParentUri = srcParent;
     }
 
     @Override
@@ -72,9 +72,10 @@ final class DeleteJob extends Job {
 
     @Override
     public Notification getProgressNotification() {
-        mProgressBuilder.setProgress(srcs.getItemCount(), mDocsProcessed, false);
+        mProgressBuilder.setProgress(mResourceUris.getItemCount(), mDocsProcessed, false);
         String format = service.getString(R.string.delete_progress);
-        mProgressBuilder.setSubText(String.format(format, mDocsProcessed, srcs.getItemCount()));
+        mProgressBuilder.setSubText(
+                String.format(format, mDocsProcessed, mResourceUris.getItemCount()));
 
         mProgressBuilder.setContentText(null);
 
@@ -94,41 +95,35 @@ final class DeleteJob extends Job {
 
     @Override
     void start() {
+        ContentResolver resolver = appContext.getContentResolver();
+
+        DocumentInfo parentDoc;
         try {
-            final List<DocumentInfo> srcs = new ArrayList<>(this.srcs.getItemCount());
+            parentDoc = mParentUri != null
+                ? DocumentInfo.fromUri(resolver, mParentUri)
+                : null;
+        } catch (FileNotFoundException e) {
+          Log.e(TAG, "Failed to resolve parent from Uri: " + mParentUri + ". Cannot continue.", e);
+          failureCount += this.mResourceUris.getItemCount();
+          return;
+        }
 
-            final Iterable<Uri> uris = this.srcs.getUris(appContext);
-
-            final ContentResolver resolver = appContext.getContentResolver();
-            final DocumentInfo srcParent = DocumentInfo.fromUri(resolver, mSrcParent);
-            for (Uri uri : uris) {
-                DocumentInfo doc = DocumentInfo.fromUri(resolver, uri);
-                srcs.add(doc);
-
-                if (DEBUG) Log.d(TAG, "Deleting document @ " + doc.derivedUri);
-                try {
-                    deleteDocument(doc, srcParent);
-
-                    if (isCanceled()) {
-                        // Canceled, dump the rest of the work. Deleted docs are not recoverable.
-                        return;
-                    }
-                } catch (ResourceException e) {
-                    Log.e(TAG, "Failed to delete document @ " + doc.derivedUri, e);
-                    onFileFailed(doc);
-                }
-
-                ++mDocsProcessed;
+        for (DocumentInfo doc : mResolvedDocs) {
+            if (DEBUG) Log.d(TAG, "Deleting document @ " + doc.derivedUri);
+            try {
+                deleteDocument(doc, parentDoc);
+            } catch (ResourceException e) {
+                Log.e(TAG, "Failed to delete document @ " + doc.derivedUri, e);
+                onFileFailed(doc);
             }
 
-            // If mDocProcessed is different than the count claimed by UrisSupplier, add the number
-            // to failedFileCount.
-            failedFileCount += (this.srcs.getItemCount() - mDocsProcessed);
-            Metrics.logFileOperation(service, operationType, srcs, null);
-        } catch(IOException e) {
-            Log.e(TAG, "Failed to get list of docs or parent source.", e);
-            failedFileCount += srcs.getItemCount();
+            mDocsProcessed++;
+            if (isCanceled()) {
+                return;
+            }
         }
+
+        Metrics.logFileOperation(service, operationType, mResolvedDocs, null);
     }
 
     @Override
@@ -137,8 +132,9 @@ final class DeleteJob extends Job {
                 .append("DeleteJob")
                 .append("{")
                 .append("id=" + id)
-                .append(", docs=" + srcs)
-                .append(", srcParent=" + mSrcParent)
+                .append(", uris=" + mResourceUris)
+                .append(", docs=" + mResolvedDocs)
+                .append(", srcParent=" + mParentUri)
                 .append(", location=" + stack)
                 .append("}")
                 .toString();

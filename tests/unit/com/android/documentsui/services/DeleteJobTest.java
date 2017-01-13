@@ -22,7 +22,7 @@ import static com.google.common.collect.Lists.newArrayList;
 
 import android.net.Uri;
 import android.provider.DocumentsContract;
-import android.test.suitebuilder.annotation.MediumTest;
+import android.support.test.filters.MediumTest;
 
 import java.util.List;
 
@@ -38,6 +38,19 @@ public class DeleteJobTest extends AbstractJobTest<DeleteJob> {
 
         createJob(newArrayList(testFile1, testFile2),
                 DocumentsContract.buildDocumentUri(AUTHORITY, mSrcRoot.documentId)).run();
+        mJobListener.waitForFinished();
+
+        mDocs.assertChildCount(mSrcRoot, 0);
+    }
+
+    public void testDeleteFiles_NoSrcParent() throws Exception {
+        Uri testFile1 = mDocs.createDocument(mSrcRoot, "text/plain", "test1.txt");
+        mDocs.writeDocument(testFile1, HAM_BYTES);
+
+        Uri testFile2 = mDocs.createDocument(mSrcRoot, "text/plain", "test2.txt");
+        mDocs.writeDocument(testFile2, FRUITY_BYTES);
+
+        createJob(newArrayList(testFile1, testFile2), null).run();
         mJobListener.waitForFinished();
 
         mDocs.assertChildCount(mSrcRoot, 0);

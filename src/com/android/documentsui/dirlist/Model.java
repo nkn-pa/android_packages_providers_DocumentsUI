@@ -16,9 +16,11 @@
 
 package com.android.documentsui.dirlist;
 
+import static com.android.documentsui.base.DocumentInfo.getCursorInt;
 import static com.android.documentsui.base.DocumentInfo.getCursorString;
 import static com.android.documentsui.base.Shared.DEBUG;
 import static com.android.documentsui.base.Shared.VERBOSE;
+import static com.android.documentsui.base.Shared.ENABLE_OMC_API_FEATURES;
 
 import android.annotation.IntDef;
 import android.database.Cursor;
@@ -32,6 +34,7 @@ import android.support.annotation.VisibleForTesting;
 import android.util.Log;
 
 import com.android.documentsui.DirectoryResult;
+import com.android.documentsui.archives.ArchivesProvider;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.EventListener;
 import com.android.documentsui.roots.RootCursorWrapper;
@@ -52,12 +55,26 @@ import java.util.function.Predicate;
 public class Model {
 
     /**
-     * Filter that passes (returns true) all non-virtual, non-partial files.
+     * Filter that passes (returns true) for all files which can be shared.
      */
-    public static final Predicate<Cursor> CONCRETE_FILE_FILTER = (Cursor c) -> {
-        int flags = DocumentInfo.getCursorInt(c, Document.COLUMN_FLAGS);
-        return (flags & Document.FLAG_VIRTUAL_DOCUMENT) == 0
-                && (flags & Document.FLAG_PARTIAL) == 0;
+    public static final Predicate<Cursor> SHARABLE_FILE_FILTER = (Cursor c) -> {
+        int flags = getCursorInt(c, Document.COLUMN_FLAGS);
+        String authority = getCursorString(c, RootCursorWrapper.COLUMN_AUTHORITY);
+        if (!ENABLE_OMC_API_FEATURES) {
+            return (flags & Document.FLAG_PARTIAL) == 0
+                    && (flags & Document.FLAG_VIRTUAL_DOCUMENT) == 0
+                    && !ArchivesProvider.AUTHORITY.equals(authority);
+        }
+        return (flags & Document.FLAG_PARTIAL) == 0
+                && !ArchivesProvider.AUTHORITY.equals(authority);
+    };
+
+    /**
+     * Filter that passes (returns true) only virtual documents.
+     */
+    public static final Predicate<Cursor> VIRTUAL_DOCUMENT_FILTER  = (Cursor c) -> {
+        int flags = getCursorInt(c, Document.COLUMN_FLAGS);
+        return (flags & Document.FLAG_VIRTUAL_DOCUMENT) != 0;
     };
 
     private static final Predicate<Cursor> ANY_FILE_FILTER = (Cursor c) -> true;
@@ -221,29 +238,42 @@ public class Model {
         final int size = (selection != null) ? selection.size() : 0;
 
         final List<DocumentInfo> docs =  new ArrayList<>(size);
+        DocumentInfo doc;
         for (String modelId: selection) {
-            loadDocument(docs, modelId, filter);
+            doc = loadDocument(modelId, filter);
+            if (doc != null) {
+                docs.add(doc);
+            }
         }
         return docs;
     }
 
+    public boolean hasDocuments(Selection selection, Predicate<Cursor> filter) {
+        for (String modelId: selection) {
+            if (loadDocument(modelId, filter) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
-     * @param docs
      * @return DocumentInfo, or null. If filter returns false, null will be returned.
      */
-    private void loadDocument(
-            List<DocumentInfo> docs, String modelId, Predicate<Cursor> filter) {
+    private @Nullable DocumentInfo loadDocument(String modelId, Predicate<Cursor> filter) {
         final Cursor cursor = getItem(modelId);
 
         if (cursor == null) {
             Log.w(TAG, "Unable to obtain document for modelId: " + modelId);
+            return null;
         }
 
         if (filter.test(cursor)) {
-            docs.add(DocumentInfo.fromDirectoryCursor(cursor));
-        } else {
-            if (VERBOSE) Log.v(TAG, "Filtered document from results: " + modelId);
+            return DocumentInfo.fromDirectoryCursor(cursor);
         }
+
+        if (VERBOSE) Log.v(TAG, "Filtered out document from results: " + modelId);
+        return null;
     }
 
     public Uri getItemUri(String modelId) {

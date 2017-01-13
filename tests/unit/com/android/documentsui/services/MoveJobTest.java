@@ -17,12 +17,11 @@
 package com.android.documentsui.services;
 
 import static com.android.documentsui.services.FileOperationService.OPERATION_MOVE;
-
 import static com.google.common.collect.Lists.newArrayList;
 
 import android.net.Uri;
 import android.provider.DocumentsContract.Document;
-import android.test.suitebuilder.annotation.MediumTest;
+import android.support.test.filters.MediumTest;
 
 @MediumTest
 public class MoveJobTest extends AbstractCopyJobTest<MoveJob> {
@@ -35,6 +34,23 @@ public class MoveJobTest extends AbstractCopyJobTest<MoveJob> {
         runCopyFilesTest();
 
         mDocs.assertChildCount(mSrcRoot, 0);
+    }
+
+    public void testMoveFiles_NoSrcParent() throws Exception {
+        Uri testFile1 = mDocs.createDocument(mSrcRoot, "text/plain", "test1.txt");
+        mDocs.writeDocument(testFile1, HAM_BYTES);
+
+        Uri testFile2 = mDocs.createDocument(mSrcRoot, "text/plain", "test2.txt");
+        mDocs.writeDocument(testFile2, FRUITY_BYTES);
+
+        createJob(newArrayList(testFile1, testFile2), null).run();
+        mJobListener.waitForFinished();
+
+        mDocs.assertChildCount(mDestRoot, 2);
+        mDocs.assertHasFile(mDestRoot, "test1.txt");
+        mDocs.assertHasFile(mDestRoot, "test2.txt");
+        mDocs.assertFileContents(mDestRoot.documentId, "test1.txt", HAM_BYTES);
+        mDocs.assertFileContents(mDestRoot.documentId, "test2.txt", FRUITY_BYTES);
     }
 
     public void testMoveVirtualTypedFile() throws Exception {

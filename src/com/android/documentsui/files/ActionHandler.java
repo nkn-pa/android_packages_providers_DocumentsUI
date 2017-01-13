@@ -244,8 +244,7 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
             return;
         }
 
-        final DocumentInfo srcParent = mState.stack.peek();
-        assert(srcParent != null);
+        final @Nullable DocumentInfo srcParent = mState.stack.peek();
 
         // Model must be accessed in UI thread, since underlying cursor is not threadsafe.
         List<DocumentInfo> docs = mScope.model.getDocuments(selection);
@@ -272,7 +271,7 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
                     .withOpType(FileOperationService.OPERATION_DELETE)
                     .withDestination(mState.stack)
                     .withSrcs(srcs)
-                    .withSrcParent(srcParent.derivedUri)
+                    .withSrcParent(srcParent == null ? null : srcParent.derivedUri)
                     .build();
 
             FileOperations.start(mActivity, operation, mDialogs::showFileOperationStatus);
@@ -291,23 +290,18 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
 
         // Model must be accessed in UI thread, since underlying cursor is not threadsafe.
         List<DocumentInfo> docs =
-                mScope.model.loadDocuments(selection, Model.CONCRETE_FILE_FILTER);
+                mScope.model.loadDocuments(selection, Model.SHARABLE_FILE_FILTER);
 
         Intent intent;
 
         if (docs.size() == 1) {
-            final DocumentInfo doc = docs.get(0);
-
             intent = new Intent(Intent.ACTION_SEND);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.addCategory(Intent.CATEGORY_DEFAULT);
+            DocumentInfo doc = docs.get(0);
             intent.setType(doc.mimeType);
             intent.putExtra(Intent.EXTRA_STREAM, doc.derivedUri);
 
         } else if (docs.size() > 1) {
             intent = new Intent(Intent.ACTION_SEND_MULTIPLE);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.addCategory(Intent.CATEGORY_DEFAULT);
 
             final ArrayList<String> mimeTypes = new ArrayList<>();
             final ArrayList<Uri> uris = new ArrayList<>();
@@ -320,7 +314,16 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
             intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
 
         } else {
+            // Everything filtered out, nothing to share.
             return;
+        }
+
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addCategory(Intent.CATEGORY_DEFAULT);
+
+        if (Shared.ENABLE_OMC_API_FEATURES
+                && mScope.model.hasDocuments(selection, Model.VIRTUAL_DOCUMENT_FILTER)) {
+            intent.addCategory(Intent.CATEGORY_TYPED_OPENABLE);
         }
 
         Intent chooserIntent = Intent.createChooser(
@@ -431,6 +434,11 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
     public boolean viewDocument(DocumentInfo doc) {
         if (doc.isPartial()) {
             Log.w(TAG, "Can't view partial file.");
+            return false;
+        }
+
+        if (doc.isInArchive()) {
+            Log.w(TAG, "Can't view archived files.");
             return false;
         }
 

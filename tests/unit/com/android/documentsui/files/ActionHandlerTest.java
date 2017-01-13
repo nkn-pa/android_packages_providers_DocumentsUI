@@ -22,7 +22,10 @@ import static com.android.documentsui.testing.IntentAsserts.assertHasExtraList;
 import static com.android.documentsui.testing.IntentAsserts.assertHasExtraUri;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import android.content.Intent;
 import android.net.Uri;
@@ -33,6 +36,8 @@ import android.support.test.runner.AndroidJUnit4;
 
 import com.android.documentsui.R;
 import com.android.documentsui.TestActionModeAddons;
+import com.android.documentsui.archives.ArchivesProvider;
+import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
@@ -57,6 +62,7 @@ public class ActionHandlerTest {
     private TestDialogController mDialogs;
     private TestConfirmationCallback mCallback;
     private ActionHandler<TestActivity> mHandler;
+    private boolean refreshAnswer = false;
 
     @Before
     public void setUp() {
@@ -153,6 +159,17 @@ public class ActionHandlerTest {
         mActionModeAddons.finishOnConfirmed.assertRejected();
     }
 
+    // Recents root means when deleting the srcParent will be null.
+    @Test
+    public void testDeleteSelectedDocuments_RecentsRoot() {
+        mEnv.state.stack.changeRoot(TestRootsAccess.RECENTS);
+
+        mHandler.deleteSelectedDocuments();
+        mDialogs.assertNoFileFailures();
+        mActivity.startService.assertCalled();
+        mActionModeAddons.finishOnConfirmed.assertCalled();
+    }
+
     @Test
     public void testShareSelectedDocuments_ShowsChooser() {
         mActivity.resources.strings.put(R.string.share_via, "Sharezilla!");
@@ -168,7 +185,23 @@ public class ActionHandlerTest {
 
         Intent intent = assertHasExtraIntent(mActivity.startActivity.getLastValue());
         assertHasAction(intent, Intent.ACTION_SEND);
+        assertFalse(intent.hasCategory(Intent.CATEGORY_TYPED_OPENABLE));
+        assertFalse(intent.hasCategory(Intent.CATEGORY_OPENABLE));
         assertHasExtraUri(intent, Intent.EXTRA_STREAM);
+    }
+
+    @Test
+    public void testShareSelectedDocuments_ArchivedFile() {
+        mEnv = TestEnv.create(ArchivesProvider.AUTHORITY);
+        mHandler.reset(mEnv.model, false);
+
+        mActivity.resources.strings.put(R.string.share_via, "Sharezilla!");
+        mEnv.selectionMgr.clearSelection();
+        mEnv.selectDocument(TestEnv.FILE_PDF);
+        mHandler.shareSelectedDocuments();
+
+        Intent intent = mActivity.startActivity.getLastValue();
+        assertNull(intent);
     }
 
     @Test
@@ -179,18 +212,37 @@ public class ActionHandlerTest {
 
         Intent intent = assertHasExtraIntent(mActivity.startActivity.getLastValue());
         assertHasAction(intent, Intent.ACTION_SEND_MULTIPLE);
+        assertFalse(intent.hasCategory(Intent.CATEGORY_TYPED_OPENABLE));
+        assertFalse(intent.hasCategory(Intent.CATEGORY_OPENABLE));
         assertHasExtraList(intent, Intent.EXTRA_STREAM, 2);
     }
 
     @Test
-    public void testShareSelectedDocuments_OmitsVirtualFiles() {
+    public void testShareSelectedDocuments_VirtualFiles() {
         mActivity.resources.strings.put(R.string.share_via, "Sharezilla!");
+        mEnv.selectionMgr.clearSelection();
         mEnv.selectDocument(TestEnv.FILE_VIRTUAL);
         mHandler.shareSelectedDocuments();
 
         Intent intent = assertHasExtraIntent(mActivity.startActivity.getLastValue());
         assertHasAction(intent, Intent.ACTION_SEND);
+        assertTrue(intent.hasCategory(Intent.CATEGORY_TYPED_OPENABLE));
+        assertFalse(intent.hasCategory(Intent.CATEGORY_OPENABLE));
         assertHasExtraUri(intent, Intent.EXTRA_STREAM);
+    }
+
+    @Test
+    public void testShareSelectedDocuments_RegularAndVirtualFiles() {
+        mActivity.resources.strings.put(R.string.share_via, "Sharezilla!");
+        mEnv.selectDocument(TestEnv.FILE_PNG);
+        mEnv.selectDocument(TestEnv.FILE_VIRTUAL);
+        mHandler.shareSelectedDocuments();
+
+        Intent intent = assertHasExtraIntent(mActivity.startActivity.getLastValue());
+        assertHasAction(intent, Intent.ACTION_SEND_MULTIPLE);
+        assertTrue(intent.hasCategory(Intent.CATEGORY_TYPED_OPENABLE));
+        assertFalse(intent.hasCategory(Intent.CATEGORY_OPENABLE));
+        assertHasExtraList(intent, Intent.EXTRA_STREAM, 3);
     }
 
     @Test
@@ -202,6 +254,8 @@ public class ActionHandlerTest {
 
         Intent intent = assertHasExtraIntent(mActivity.startActivity.getLastValue());
         assertHasAction(intent, Intent.ACTION_SEND_MULTIPLE);
+        assertFalse(intent.hasCategory(Intent.CATEGORY_TYPED_OPENABLE));
+        assertFalse(intent.hasCategory(Intent.CATEGORY_OPENABLE));
         assertHasExtraList(intent, Intent.EXTRA_STREAM, 2);
     }
 
@@ -287,6 +341,41 @@ public class ActionHandlerTest {
 
         mHandler.initLocation(intent);
         assertRootPicked(TestRootsAccess.PICKLES.getUri());
+    }
+
+    @Test
+    public void testRefresh_nullUri() throws Exception {
+        refreshAnswer = true;
+        mHandler.refreshDocument(null, (boolean answer) -> {
+            refreshAnswer = answer;
+        });
+
+        mEnv.beforeAsserts();
+        assertFalse(refreshAnswer);
+    }
+
+    @Test
+    public void testRefresh_emptyStack() throws Exception {
+        refreshAnswer = true;
+        assertTrue(mEnv.state.stack.isEmpty());
+        mHandler.refreshDocument(new DocumentInfo(), (boolean answer) -> {
+            refreshAnswer = answer;
+        });
+
+        mEnv.beforeAsserts();
+        assertFalse(refreshAnswer);
+    }
+
+    @Test
+    public void testRefresh() throws Exception {
+        refreshAnswer = false;
+        mEnv.populateStack();
+        mHandler.refreshDocument(mEnv.model.getDocument("1"), (boolean answer) -> {
+            refreshAnswer = answer;
+        });
+
+        mEnv.beforeAsserts();
+        assertTrue(refreshAnswer);
     }
 
     private void assertRootPicked(Uri expectedUri) throws Exception {

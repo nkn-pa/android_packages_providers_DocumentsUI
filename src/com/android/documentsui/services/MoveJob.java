@@ -36,13 +36,17 @@ import com.android.documentsui.clipping.UrisSupplier;
 
 import java.io.FileNotFoundException;
 
+import javax.annotation.Nullable;
+
 // TODO: Stop extending CopyJob.
 final class MoveJob extends CopyJob {
 
     private static final String TAG = "MoveJob";
 
-    Uri mSrcParentUri;
-    DocumentInfo mSrcParent;
+    private final @Nullable Uri mSrcParentUri;
+
+    // mSrcParent may be populated during setup.
+    private @Nullable DocumentInfo mSrcParent;
 
     /**
      * Moves files to a destination identified by {@code destination}.
@@ -52,7 +56,7 @@ final class MoveJob extends CopyJob {
      * @see @link {@link Job} constructor for most param descriptions.
      */
     MoveJob(Context service, Listener listener,
-            String id, Uri srcParent, DocumentStack destination, UrisSupplier srcs) {
+            String id, DocumentStack destination, UrisSupplier srcs, @Nullable Uri srcParent) {
         super(service, listener, id, OPERATION_MOVE, destination, srcs);
         mSrcParentUri = srcParent;
     }
@@ -84,13 +88,15 @@ final class MoveJob extends CopyJob {
 
     @Override
     public boolean setUp() {
-        final ContentResolver resolver = appContext.getContentResolver();
-        try {
-            mSrcParent = DocumentInfo.fromUri(resolver, mSrcParentUri);
-        } catch(FileNotFoundException e) {
-            Log.e(TAG, "Failed to create srcParent.", e);
-            failedFileCount += srcs.getItemCount();
-            return false;
+        if (mSrcParentUri != null) {
+            final ContentResolver resolver = appContext.getContentResolver();
+            try {
+                mSrcParent = DocumentInfo.fromUri(resolver, mSrcParentUri);
+            } catch (FileNotFoundException e) {
+                Log.e(TAG, "Failed to create srcParent.", e);
+                failureCount = mResourceUris.getItemCount();
+                return false;
+            }
         }
 
         return super.setUp();
@@ -107,7 +113,7 @@ final class MoveJob extends CopyJob {
     @Override
     boolean checkSpace() {
         long size = 0;
-        for (DocumentInfo src : mSrcs) {
+        for (DocumentInfo src : mResolvedDocs) {
             if (!src.authority.equals(stack.getRoot().authority)) {
                 if (src.isDirectory()) {
                     try {
@@ -124,7 +130,7 @@ final class MoveJob extends CopyJob {
             }
         }
 
-        return checkSpace(size);
+        return verifySpaceAvailable(size);
     }
 
     void processDocument(DocumentInfo src, DocumentInfo srcParent, DocumentInfo dest)
@@ -134,7 +140,7 @@ final class MoveJob extends CopyJob {
 
         // When moving within the same provider, try to use optimized moving.
         // If not supported, then fallback to byte-by-byte copy/move.
-        if (src.authority.equals(dest.authority)) {
+        if (src.authority.equals(dest.authority) && (srcParent != null || mSrcParent != null)) {
             if ((src.flags & Document.FLAG_SUPPORTS_MOVE) != 0) {
                 try {
                     if (DocumentsContract.moveDocument(getClient(src), src.derivedUri,
@@ -174,7 +180,8 @@ final class MoveJob extends CopyJob {
                 .append("MoveJob")
                 .append("{")
                 .append("id=" + id)
-                .append(", srcs=" + mSrcs)
+                .append(", uris=" + mResourceUris)
+                .append(", docs=" + mResolvedDocs)
                 .append(", srcParent=" + mSrcParent)
                 .append(", destination=" + stack)
                 .append("}")
