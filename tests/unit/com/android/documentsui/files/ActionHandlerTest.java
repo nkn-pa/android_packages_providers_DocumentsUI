@@ -93,7 +93,7 @@ public class ActionHandlerTest {
 
         mEnv.selectDocument(TestEnv.FILE_GIF);
 
-        mHandler.reset(mEnv.model, false);
+        mHandler.reset(mEnv.model);
     }
 
     @Test
@@ -110,13 +110,10 @@ public class ActionHandlerTest {
     }
 
     @Test
-    public void testOpenDrawerOnLaunchingEmptyRoot() {
-        mEnv.model.reset();
-        // state should not say we've changed our location
-
-        mEnv.model.update();
-
-        mActivity.setRootsDrawerOpen.assertLastArgument(true);
+    public void testSpringOpenDirectory() {
+        mHandler.springOpenDirectory(TestEnv.FOLDER_0);
+        assertTrue(mActionModeAddons.finishActionModeCalled);
+        assertEquals(TestEnv.FOLDER_0, mEnv.state.stack.peek());
     }
 
     @Test
@@ -193,7 +190,7 @@ public class ActionHandlerTest {
     @Test
     public void testShareSelectedDocuments_ArchivedFile() {
         mEnv = TestEnv.create(ArchivesProvider.AUTHORITY);
-        mHandler.reset(mEnv.model, false);
+        mHandler.reset(mEnv.model);
 
         mActivity.resources.strings.put(R.string.share_via, "Sharezilla!");
         mEnv.selectionMgr.clearSelection();

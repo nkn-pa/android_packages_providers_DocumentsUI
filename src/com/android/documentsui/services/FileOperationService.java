@@ -183,12 +183,15 @@ public class FileOperationService extends Service implements Job.Listener {
                 return;
             }
 
-            mWakeLock.acquire();
-
             assert (job != null);
             if (DEBUG) Log.d(TAG, "Scheduling job " + job.id + ".");
             Future<?> future = getExecutorService(operation.getOpType()).submit(job);
             mRunning.put(jobId, new JobRecord(job, future));
+
+            // Acquire wake lock to keep CPU running until we finish all jobs. Acquire wake lock
+            // after we create a job and put it in mRunning to avoid potential leaking of wake lock
+            // in case where job creation fails.
+            mWakeLock.acquire();
         }
     }
 
@@ -241,6 +244,12 @@ public class FileOperationService extends Service implements Job.Listener {
     private void deleteJob(Job job) {
         if (DEBUG) Log.d(TAG, "deleteJob: " + job.id);
 
+        // Release wake lock before clearing jobs just in case we fail to clean them up.
+        mWakeLock.release();
+        if (!mWakeLock.isHeld()) {
+            mWakeLock = null;
+        }
+
         JobRecord record = mRunning.remove(job.id);
         assert(record != null);
         record.job.cleanup();
@@ -256,8 +265,7 @@ public class FileOperationService extends Service implements Job.Listener {
      */
     private void shutdown() {
         if (DEBUG) Log.d(TAG, "Shutting down. Last serviceId was " + mLastServiceId);
-        mWakeLock.release();
-        mWakeLock = null;
+        assert(mWakeLock == null);
 
         // Turns out, for us, stopSelfResult always returns false in tests,
         // so we can't guard executor shutdown. For this reason we move

@@ -309,7 +309,7 @@ public class DirectoryFragment extends Fragment
 
         mSelectionMgr = mInjector.getSelectionManager(mAdapter, this::canSetSelectionState);
         mFocusManager = mInjector.getFocusManager(mRecView, mModel);
-        mActions = mInjector.getActionHandler(mModel, mLocalState.mSearchMode);
+        mActions = mInjector.getActionHandler(mModel);
 
         mSelectionMetadata = new SelectionMetadata(mModel::getItem);
         mSelectionMgr.addItemCallback(mSelectionMetadata);
@@ -897,7 +897,7 @@ public class DirectoryFragment extends Fragment
     public void onViewHovered(View view) {
         BaseActivity activity = mActivity;
         if (getModelId(view) != null) {
-           activity.springOpenDirectory(getDestination(view));
+            mActions.springOpenDirectory(getDestination(view));
         }
         activity.setRootsDrawerOpen(false);
     }
