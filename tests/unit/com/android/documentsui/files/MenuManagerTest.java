@@ -49,6 +49,8 @@ public final class MenuManagerTest {
     private TestMenuItem selectAll;
     private TestMenuItem moveTo;
     private TestMenuItem copyTo;
+    private TestMenuItem compressTo;
+    private TestMenuItem extractTo;
     private TestMenuItem share;
     private TestMenuItem delete;
     private TestMenuItem createDir;
@@ -80,6 +82,8 @@ public final class MenuManagerTest {
         selectAll = testMenu.findItem(R.id.menu_select_all);
         moveTo = testMenu.findItem(R.id.menu_move_to);
         copyTo = testMenu.findItem(R.id.menu_copy_to);
+        compressTo = testMenu.findItem(R.id.menu_compress_to);
+        extractTo = testMenu.findItem(R.id.menu_extract_to);
         share = testMenu.findItem(R.id.menu_share);
         delete = testMenu.findItem(R.id.menu_delete);
         createDir = testMenu.findItem(R.id.menu_create_dir);
@@ -119,6 +123,8 @@ public final class MenuManagerTest {
         delete.assertVisible();
         share.assertVisible();
         copyTo.assertEnabled();
+        compressTo.assertEnabled();
+        extractTo.assertInvisible();
         moveTo.assertEnabled();
     }
 
@@ -130,6 +136,8 @@ public final class MenuManagerTest {
         rename.assertDisabled();
         share.assertInvisible();
         copyTo.assertDisabled();
+        compressTo.assertDisabled();
+        extractTo.assertDisabled();
         moveTo.assertDisabled();
     }
 
@@ -158,6 +166,24 @@ public final class MenuManagerTest {
 
         // We can't share directories
         share.assertInvisible();
+    }
+
+    @Test
+    public void testActionMenu_cantExtract() {
+        selectionDetails.canExtract = false;
+        mgr.updateActionMenu(testMenu, selectionDetails);
+
+        extractTo.assertInvisible();
+    }
+
+    @Test
+    public void testActionMenu_canExtract_hidesCopyToAndCompressTo() {
+        selectionDetails.canExtract = true;
+        mgr.updateActionMenu(testMenu, selectionDetails);
+
+        extractTo.assertEnabled();
+        copyTo.assertDisabled();
+        compressTo.assertDisabled();
     }
 
     @Test

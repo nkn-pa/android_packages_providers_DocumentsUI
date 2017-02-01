@@ -16,7 +16,6 @@
 
 package com.android.documentsui.dirlist;
 
-import static android.content.ContentResolver.EXTRA_REFRESH_SUPPORTED;
 import static com.android.documentsui.base.DocumentInfo.getCursorInt;
 import static com.android.documentsui.base.DocumentInfo.getCursorString;
 import static com.android.documentsui.base.Shared.DEBUG;
@@ -27,7 +26,6 @@ import static com.android.documentsui.base.State.MODE_LIST;
 import android.annotation.DimenRes;
 import android.annotation.FractionRes;
 import android.annotation.IntDef;
-import android.annotation.StringRes;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Fragment;
@@ -43,7 +41,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Parcelable;
 import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
@@ -64,7 +61,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
-import android.widget.TextView;
 
 import com.android.documentsui.ActionHandler;
 import com.android.documentsui.ActionModeController;
@@ -83,7 +79,6 @@ import com.android.documentsui.ItemDragListener;
 import com.android.documentsui.Metrics;
 import com.android.documentsui.R;
 import com.android.documentsui.RecentsLoader;
-import com.android.documentsui.RefreshTask;
 import com.android.documentsui.ThumbnailCache;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.EventHandler;
@@ -111,7 +106,6 @@ import com.android.documentsui.services.FileOperationService.OpType;
 import com.android.documentsui.services.FileOperations;
 import com.android.documentsui.sorting.SortDimension;
 import com.android.documentsui.sorting.SortModel;
-import com.android.documentsui.ui.DialogController;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
@@ -311,6 +305,9 @@ public class DirectoryFragment extends Fragment
         mFocusManager = mInjector.getFocusManager(mRecView, mModel);
         mActions = mInjector.getActionHandler(mModel);
 
+        mRecView.setAccessibilityDelegateCompat(
+                new AccessibilityClickEventRouter(mRecView,
+                        (View child) -> onAccessibilityClick(child)));
         mSelectionMetadata = new SelectionMetadata(mModel::getItem);
         mSelectionMgr.addItemCallback(mSelectionMetadata);
 
@@ -623,6 +620,20 @@ public class DirectoryFragment extends Fragment
                 mActionModeController.finishActionMode();
                 return true;
 
+            case R.id.menu_compress_to:
+                transferDocuments(selection, FileOperationService.OPERATION_COMPRESS);
+                // TODO: Only finish selection mode if compress-to is not canceled.
+                // Need to plum down into handling the way we do with deleteDocuments.
+                mActionModeController.finishActionMode();
+                return true;
+
+            case R.id.menu_extract_to:
+                transferDocuments(selection, FileOperationService.OPERATION_EXTRACT);
+                // TODO: Only finish selection mode if compress-to is not canceled.
+                // Need to plum down into handling the way we do with deleteDocuments.
+                mActionModeController.finishActionMode();
+                return true;
+
             case R.id.menu_move_to:
                 // Exit selection mode first, so we avoid deselecting deleted documents.
                 mActionModeController.finishActionMode();
@@ -675,6 +686,12 @@ public class DirectoryFragment extends Fragment
         return false;
     }
 
+    private boolean onAccessibilityClick(View child) {
+        DocumentDetails doc = getDocumentHolder(child);
+        mActions.openDocument(doc);
+        return true;
+    }
+
     private void cancelThumbnailTask(View view) {
         final ImageView iconThumb = (ImageView) view.findViewById(R.id.icon_thumb);
         if (iconThumb != null) {
@@ -705,10 +722,19 @@ public class DirectoryFragment extends Fragment
     }
 
     private void transferDocuments(final Selection selected, final @OpType int mode) {
-        if (mode == FileOperationService.OPERATION_COPY) {
-            Metrics.logUserAction(getContext(), Metrics.USER_ACTION_COPY_TO);
-        } else if (mode == FileOperationService.OPERATION_MOVE) {
-            Metrics.logUserAction(getContext(), Metrics.USER_ACTION_MOVE_TO);
+        switch (mode) {
+            case FileOperationService.OPERATION_COPY:
+                Metrics.logUserAction(getContext(), Metrics.USER_ACTION_COPY_TO);
+                break;
+            case FileOperationService.OPERATION_COMPRESS:
+                Metrics.logUserAction(getContext(), Metrics.USER_ACTION_COMPRESS_TO);
+                break;
+            case FileOperationService.OPERATION_EXTRACT:
+                Metrics.logUserAction(getContext(), Metrics.USER_ACTION_EXTRACT_TO);
+                break;
+            case FileOperationService.OPERATION_MOVE:
+                Metrics.logUserAction(getContext(), Metrics.USER_ACTION_MOVE_TO);
+                break;
         }
 
         // Pop up a dialog to pick a destination.  This is inadequate but works for now.
@@ -723,7 +749,7 @@ public class DirectoryFragment extends Fragment
         try {
             ClipStore clipStorage = DocumentsApplication.getClipStore(getContext());
             srcs = UrisSupplier.create(selected, mModel::getItemUri, clipStorage);
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException("Failed to create uri supplier.", e);
         }
 
@@ -737,8 +763,23 @@ public class DirectoryFragment extends Fragment
         // Set an appropriate title on the drawer when it is shown in the picker.
         // Coupled with the fact that we auto-open the drawer for copy/move operations
         // it should basically be the thing people see first.
-        int drawerTitleId = mode == FileOperationService.OPERATION_MOVE
-                ? R.string.menu_move : R.string.menu_copy;
+        int drawerTitleId;
+        switch (mode) {
+            case FileOperationService.OPERATION_COPY:
+                drawerTitleId = R.string.menu_copy;
+                break;
+            case FileOperationService.OPERATION_COMPRESS:
+                drawerTitleId = R.string.menu_compress;
+                break;
+            case FileOperationService.OPERATION_EXTRACT:
+                drawerTitleId = R.string.menu_extract;
+                break;
+            case FileOperationService.OPERATION_MOVE:
+                drawerTitleId = R.string.menu_copy;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown mode: " + mode);
+        }
         intent.putExtra(DocumentsContract.EXTRA_PROMPT, getResources().getString(drawerTitleId));
 
         // Model must be accessed in UI thread, since underlying cursor is not threadsafe.
@@ -785,7 +826,7 @@ public class DirectoryFragment extends Fragment
 
         // Model must be accessed in UI thread, since underlying cursor is not threadsafe.
         List<DocumentInfo> docs = mModel.getDocuments(selected);
-        RenameDocumentFragment.show(getFragmentManager(), docs.get(0));
+        RenameDocumentFragment.show(getFragmentManager(), docs.get(0), mModel::hasFileWithName);
     }
 
     private boolean isDocumentEnabled(String mimeType, int flags) {

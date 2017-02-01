@@ -42,8 +42,10 @@ import com.android.internal.util.Preconditions;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 
 /**
@@ -63,15 +65,17 @@ public class ArchivesProvider extends DocumentsProvider implements Closeable {
     };
 
     @GuardedBy("mArchives")
-    private final LruCache<Uri, Loader> mArchives =
-            new LruCache<Uri, Loader>(OPENED_ARCHIVES_CACHE_SIZE) {
+    private final LruCache<Key, Loader> mArchives =
+            new LruCache<Key, Loader>(OPENED_ARCHIVES_CACHE_SIZE) {
                 @Override
-                public void entryRemoved(boolean evicted, Uri key,
+                public void entryRemoved(boolean evicted, Key key,
                         Loader oldValue, Loader newValue) {
                     oldValue.getWriteLock().lock();
                     try {
                         oldValue.get().close();
-                    } finally {
+                    } catch (IOException e) {
+                        Log.e(TAG, "Closing archive failed.", e);
+                    }finally {
                         oldValue.getWriteLock().unlock();
                     }
                 }
@@ -121,7 +125,7 @@ public class ArchivesProvider extends DocumentsProvider implements Closeable {
 
             cursor.setExtras(bundle);
             cursor.setNotificationUri(getContext().getContentResolver(),
-                    buildUriForArchive(archiveId.mArchiveUri));
+                    buildUriForArchive(archiveId.mArchiveUri, archiveId.mAccessMode));
             return cursor;
         } finally {
             releaseInstance(loader);
@@ -231,9 +235,15 @@ public class ArchivesProvider extends DocumentsProvider implements Closeable {
         return false;
     }
 
-    public static Uri buildUriForArchive(Uri archiveUri) {
-        return DocumentsContract.buildDocumentUri(
-                AUTHORITY, new ArchiveId(archiveUri, "/").toDocumentId());
+    /**
+     * Creates a Uri for accessing an archive with the specified access mode.
+     *
+     * @see ParcelFileDescriptor#MODE_READ
+     * @see ParcelFileDescriptor#MODE_WRITE
+     */
+    public static Uri buildUriForArchive(Uri archiveUri, int accessMode) {
+        return DocumentsContract.buildDocumentUri(AUTHORITY,
+                new ArchiveId(archiveUri, accessMode, "/").toDocumentId());
     }
 
     /**
@@ -263,11 +273,12 @@ public class ArchivesProvider extends DocumentsProvider implements Closeable {
         }
     }
 
-    private Loader getInstanceUncheckedLocked(String documentId)
-            throws FileNotFoundException {
+    private Loader getInstanceUncheckedLocked(String documentId) throws FileNotFoundException {
         final ArchiveId id = ArchiveId.fromDocumentId(documentId);
-        if (mArchives.get(id.mArchiveUri) != null) {
-            return mArchives.get(id.mArchiveUri);
+        final Key key = Key.fromArchiveId(id);
+        final Loader existingLoader = mArchives.get(key);
+        if (existingLoader != null) {
+            return existingLoader;
         }
 
         final Cursor cursor = getContext().getContentResolver().query(
@@ -281,27 +292,59 @@ public class ArchivesProvider extends DocumentsProvider implements Closeable {
                 Document.COLUMN_MIME_TYPE));
         Preconditions.checkArgument(isSupportedArchiveType(mimeType));
         final Uri notificationUri = cursor.getNotificationUri();
-        final Loader loader = new Loader(getContext(), id.mArchiveUri, notificationUri);
+        final Loader loader = new Loader(getContext(), id.mArchiveUri, id.mAccessMode,
+                notificationUri);
 
         // Remove the instance from mArchives collection once the archive file changes.
         if (notificationUri != null) {
-            final LruCache<Uri, Loader> finalArchives = mArchives;
+            final LruCache<Key, Loader> finalArchives = mArchives;
             getContext().getContentResolver().registerContentObserver(notificationUri,
                     false,
                     new ContentObserver(null) {
                         @Override
                         public void onChange(boolean selfChange, Uri uri) {
                             synchronized (mArchives) {
-                                final Loader currentLoader = mArchives.get(id.mArchiveUri);
+                                final Loader currentLoader = mArchives.get(key);
                                 if (currentLoader == loader) {
-                                    mArchives.remove(id.mArchiveUri);
+                                    mArchives.remove(key);
                                 }
                             }
                         }
                     });
         }
 
-        mArchives.put(id.mArchiveUri, loader);
+        mArchives.put(key, loader);
         return loader;
+    }
+
+    private static class Key {
+        Uri archiveUri;
+        int accessMode;
+
+        public Key(Uri archiveUri, int accessMode) {
+            this.archiveUri = archiveUri;
+            this.accessMode = accessMode;
+        }
+
+        public static Key fromArchiveId(ArchiveId id) {
+            return new Key(id.mArchiveUri, id.mAccessMode);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == null) {
+                return false;
+            }
+            if (!(other instanceof Key)) {
+                return false;
+            }
+            return archiveUri.equals(((Key) other).archiveUri) &&
+                accessMode == ((Key) other).accessMode;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(archiveUri, accessMode);
+        }
     }
 }
