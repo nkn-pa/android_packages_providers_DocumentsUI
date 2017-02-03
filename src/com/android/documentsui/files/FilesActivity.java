@@ -96,10 +96,10 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
         mInjector.selectionMgr = new SelectionManager(SelectionManager.MODE_MULTIPLE);
 
         mInjector.focusManager = new FocusManager(
-            mInjector.selectionMgr,
-            mDrawer,
-            this::focusSidebar,
-            getColor(R.color.accent_dark));
+                mInjector.selectionMgr,
+                mDrawer,
+                this::focusSidebar,
+                getColor(R.color.accent_dark));
 
         mInjector.menuManager = new MenuManager(
                 mSearchManager,
@@ -156,7 +156,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                     FileOperationService.OPERATION_COPY);
             final ArrayList<DocumentInfo> docList =
                     intent.getParcelableArrayListExtra(FileOperationService.EXTRA_FAILED_DOCS);
-            final ArrayList<DocumentInfo> uriList =
+            final ArrayList<Uri> uriList =
                     intent.getParcelableArrayListExtra(FileOperationService.EXTRA_FAILED_URIS);
             OperationDialogFragment.show(
                     getFragmentManager(),
