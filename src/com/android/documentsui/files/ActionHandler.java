@@ -24,6 +24,8 @@ import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
 import android.provider.DocumentsContract;
+import android.provider.DocumentsContract.Root;
+import android.provider.DocumentsContract.Document;
 import android.util.Log;
 
 import com.android.documentsui.AbstractActionHandler;
@@ -339,12 +341,14 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
     public void initLocation(Intent intent) {
         assert(intent != null);
 
-        if (mState.restored) {
+        // stack is initialized if it's restored from bundle, which means we're restoring a
+        // previously stored state.
+        if (mState.stack.isInitialized()) {
             if (DEBUG) Log.d(TAG, "Stack already resolved for uri: " + intent.getData());
             return;
         }
 
-        if (launchToStackLocation(mState.stack)) {
+        if (launchToStackLocation(intent)) {
             if (DEBUG) Log.d(TAG, "Launched to location from stack.");
             return;
         }
@@ -354,13 +358,22 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
             return;
         }
 
+        if (launchToDocument(intent)) {
+            if (DEBUG) Log.d(TAG, "Launched to a document.");
+            return;
+        }
+
         if (DEBUG) Log.d(TAG, "Launching directly into Home directory.");
         loadHomeDir();
     }
 
-    // If a non-empty stack is present in our state, it was read (presumably)
-    // from EXTRA_STACK intent extra. In this case, we'll skip other means of
-    // loading or restoring the stack (like URI).
+    @Override
+    protected void launchToDefaultLocation() {
+        loadHomeDir();
+    }
+
+    // If EXTRA_STACK is not null in intent, we'll skip other means of loading
+    // or restoring the stack (like URI).
     //
     // When restoring from a stack, if a URI is present, it should only ever be:
     // -- a launch URI: Launch URIs support sensible activity management,
@@ -369,11 +382,13 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
     //
     // Any other URI is *sorta* unexpected...except when browsing an archive
     // in downloads.
-    private boolean launchToStackLocation(DocumentStack stack) {
+    private boolean launchToStackLocation(Intent intent) {
+        DocumentStack stack = intent.getParcelableExtra(Shared.EXTRA_STACK);
         if (stack == null || stack.getRoot() == null) {
             return false;
         }
 
+        mState.stack.reset(stack);
         if (mState.stack.isEmpty()) {
             mActivity.onRootPicked(mState.stack.getRoot());
         } else {
@@ -394,6 +409,17 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
                 return true;
             }
         }
+        return false;
+    }
+
+    private boolean launchToDocument(Intent intent) {
+        if (DocumentsContract.ACTION_BROWSE.equals(intent.getAction())) {
+            Uri uri = intent.getData();
+            if (DocumentsContract.isDocumentUri(mActivity, uri)) {
+                return launchToDocument(intent.getData());
+            }
+        }
+
         return false;
     }
 

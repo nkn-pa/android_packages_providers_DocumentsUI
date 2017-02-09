@@ -24,6 +24,8 @@ import android.graphics.Point;
 import android.net.Uri;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
+import android.os.storage.StorageManager;
+import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import android.support.annotation.Nullable;
 import android.system.ErrnoException;
@@ -34,8 +36,6 @@ import android.webkit.MimeTypeMap;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
-
-import android.support.annotation.VisibleForTesting;
 
 import java.io.Closeable;
 import java.io.File;
@@ -232,7 +232,6 @@ public abstract class Archive implements Closeable {
      *
      * @see DocumentsProvider.createDocument(String, String, String))
      */
-    @VisibleForTesting
     public String createDocument(String parentDocumentId, String mimeType, String displayName)
             throws FileNotFoundException {
         throw new UnsupportedOperationException("Creating documents not supported.");
@@ -246,7 +245,7 @@ public abstract class Archive implements Closeable {
     public ParcelFileDescriptor openDocument(
             String documentId, String mode, @Nullable final CancellationSignal signal)
             throws FileNotFoundException {
-        throw new UnsupportedOperationException("Thumbnails not supported.");
+        throw new UnsupportedOperationException("Opening not supported.");
     }
 
     /**
@@ -304,7 +303,8 @@ public abstract class Archive implements Closeable {
     }
 
     // TODO: Upstream to the Preconditions class.
-    static class MorePreconditions {
+    // TODO: Move to a separate file.
+    public static class MorePreconditions {
         static void checkArgumentEquals(String expected, @Nullable String actual,
                 String message) {
             if (!TextUtils.equals(expected, actual)) {
