@@ -49,7 +49,7 @@ public final class MenuManagerTest {
     private TestMenuItem selectAll;
     private TestMenuItem moveTo;
     private TestMenuItem copyTo;
-    private TestMenuItem compressTo;
+    private TestMenuItem compress;
     private TestMenuItem extractTo;
     private TestMenuItem share;
     private TestMenuItem delete;
@@ -82,7 +82,7 @@ public final class MenuManagerTest {
         selectAll = testMenu.findItem(R.id.menu_select_all);
         moveTo = testMenu.findItem(R.id.menu_move_to);
         copyTo = testMenu.findItem(R.id.menu_copy_to);
-        compressTo = testMenu.findItem(R.id.menu_compress_to);
+        compress = testMenu.findItem(R.id.menu_compress);
         extractTo = testMenu.findItem(R.id.menu_extract_to);
         share = testMenu.findItem(R.id.menu_share);
         delete = testMenu.findItem(R.id.menu_delete);
@@ -116,6 +116,7 @@ public final class MenuManagerTest {
     public void testActionMenu() {
         selectionDetails.canDelete = true;
         selectionDetails.canRename = true;
+        dirDetails.canCreateDoc = true;
 
         mgr.updateActionMenu(testMenu, selectionDetails);
 
@@ -123,7 +124,7 @@ public final class MenuManagerTest {
         delete.assertVisible();
         share.assertVisible();
         copyTo.assertEnabled();
-        compressTo.assertEnabled();
+        compress.assertEnabled();
         extractTo.assertInvisible();
         moveTo.assertEnabled();
     }
@@ -131,14 +132,31 @@ public final class MenuManagerTest {
     @Test
     public void testActionMenu_containsPartial() {
         selectionDetails.containPartial = true;
+        dirDetails.canCreateDoc = true;
         mgr.updateActionMenu(testMenu, selectionDetails);
 
         rename.assertDisabled();
         share.assertInvisible();
         copyTo.assertDisabled();
-        compressTo.assertDisabled();
+        compress.assertDisabled();
         extractTo.assertDisabled();
         moveTo.assertDisabled();
+    }
+
+    @Test
+    public void testActionMenu_compress() {
+        dirDetails.canCreateDoc = true;
+        mgr.updateActionMenu(testMenu, selectionDetails);
+
+        compress.assertEnabled();
+    }
+
+    @Test
+    public void testActionMenu_cantCompress() {
+        dirDetails.canCreateDoc = false;
+        mgr.updateActionMenu(testMenu, selectionDetails);
+
+        compress.assertDisabled();
     }
 
     @Test
@@ -177,13 +195,32 @@ public final class MenuManagerTest {
     }
 
     @Test
-    public void testActionMenu_canExtract_hidesCopyToAndCompressTo() {
+    public void testActionMenu_canExtract_hidesCopyToAndCompressAndShare() {
         selectionDetails.canExtract = true;
+        dirDetails.canCreateDoc = true;
         mgr.updateActionMenu(testMenu, selectionDetails);
 
         extractTo.assertEnabled();
         copyTo.assertDisabled();
-        compressTo.assertDisabled();
+        compress.assertDisabled();
+    }
+
+    @Test
+    public void testActionMenu_canOpenWith() {
+        selectionDetails.canOpenWith = true;
+        mgr.updateActionMenu(testMenu, selectionDetails);
+
+        openWith.assertVisible();
+        openWith.assertEnabled();
+    }
+
+    @Test
+    public void testActionMenu_cantOpenWith() {
+        selectionDetails.canOpenWith = false;
+        mgr.updateActionMenu(testMenu, selectionDetails);
+
+        openWith.assertVisible();
+        openWith.assertDisabled();
     }
 
     @Test
@@ -332,8 +369,6 @@ public final class MenuManagerTest {
         mgr.updateContextMenuForFiles(testMenu, selectionDetails);
         open.assertVisible();
         open.assertEnabled();
-        openWith.assertVisible();
-        openWith.assertEnabled();
         cut.assertVisible();
         copy.assertVisible();
         rename.assertVisible();
@@ -342,13 +377,27 @@ public final class MenuManagerTest {
     }
 
     @Test
+    public void testContextMenu_OnFile_canOpenWith() {
+        selectionDetails.canOpenWith = true;
+        mgr.updateContextMenuForFiles(testMenu, selectionDetails);
+        openWith.assertVisible();
+        openWith.assertEnabled();
+    }
+
+    @Test
+    public void testContextMenu_OnFile_cantOpenWith() {
+        selectionDetails.canOpenWith = false;
+        mgr.updateContextMenuForFiles(testMenu, selectionDetails);
+        openWith.assertVisible();
+        openWith.assertDisabled();
+    }
+
+    @Test
     public void testContextMenu_OnMultipleFiles() {
         selectionDetails.size = 3;
         mgr.updateContextMenuForFiles(testMenu, selectionDetails);
         open.assertVisible();
         open.assertDisabled();
-        openWith.assertVisible();
-        openWith.assertDisabled();
     }
 
     @Test

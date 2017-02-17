@@ -54,13 +54,14 @@ public abstract class MenuManager {
     /** @see ActionModeController */
     public void updateActionMenu(Menu menu, SelectionDetails selection) {
         updateOpenInActionMode(menu.findItem(R.id.menu_open), selection);
+        updateOpenWith(menu.findItem(R.id.menu_open_with), selection);
         updateDelete(menu.findItem(R.id.menu_delete), selection);
         updateShare(menu.findItem(R.id.menu_share), selection);
         updateRename(menu.findItem(R.id.menu_rename), selection);
         updateSelectAll(menu.findItem(R.id.menu_select_all));
         updateMoveTo(menu.findItem(R.id.menu_move_to), selection);
         updateCopyTo(menu.findItem(R.id.menu_copy_to), selection);
-        updateCompressTo(menu.findItem(R.id.menu_compress_to), selection);
+        updateCompress(menu.findItem(R.id.menu_compress), selection);
         updateExtractTo(menu.findItem(R.id.menu_extract_to), selection);
 
         Menus.disableHiddenItems(menu);
@@ -271,8 +272,8 @@ public abstract class MenuManager {
         copyTo.setVisible(false);
     }
 
-    protected void updateCompressTo(MenuItem compressTo, SelectionDetails selectionDetails) {
-        compressTo.setVisible(false);
+    protected void updateCompress(MenuItem compress, SelectionDetails selectionDetails) {
+        compress.setVisible(false);
     }
 
     protected void updateExtractTo(MenuItem extractTo, SelectionDetails selectionDetails) {
@@ -313,6 +314,8 @@ public abstract class MenuManager {
         boolean canPasteInto();
 
         boolean canExtract();
+
+        boolean canOpenWith();
     }
 
     public static class DirectoryDetails {

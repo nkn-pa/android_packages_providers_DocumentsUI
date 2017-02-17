@@ -144,8 +144,7 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
 
     @Override
     protected void updateOpenWith(MenuItem openWith, SelectionDetails selectionDetails) {
-        openWith.setEnabled(selectionDetails.size() == 1
-                && !selectionDetails.containsPartialFiles());
+        openWith.setEnabled(selectionDetails.canOpenWith());
     }
 
     @Override
@@ -174,10 +173,10 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
     }
 
     @Override
-    protected void updateCompressTo(MenuItem compressTo, SelectionDetails selectionDetails) {
-        compressTo.setVisible(true);
-        // Do not allow to compress already compressed files for simplicity.
-        compressTo.setEnabled(!selectionDetails.containsPartialFiles() &&
+    protected void updateCompress(MenuItem compress, SelectionDetails selectionDetails) {
+        final boolean readOnly = !mDirDetails.canCreateDoc();
+        compress.setVisible(true);
+        compress.setEnabled(!readOnly && !selectionDetails.containsPartialFiles() &&
                 !selectionDetails.canExtract());
     }
 
@@ -213,7 +212,8 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
     @Override
     protected void updateShare(MenuItem share, SelectionDetails selectionDetails) {
         share.setVisible(!selectionDetails.containsDirectories()
-                && !selectionDetails.containsPartialFiles());
+                && !selectionDetails.containsPartialFiles()
+                && !selectionDetails.canExtract());
     }
 
     @Override
