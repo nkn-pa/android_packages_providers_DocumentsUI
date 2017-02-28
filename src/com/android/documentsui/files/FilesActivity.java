@@ -102,6 +102,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                 getColor(R.color.accent_dark));
 
         mInjector.menuManager = new MenuManager(
+                this,
                 mSearchManager,
                 mState,
                 new DirectoryDetails(this) {
@@ -227,6 +228,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        DirectoryFragment dir;
         switch (item.getItemId()) {
             case R.id.menu_create_dir:
                 assert(canCreateDirectory());
@@ -236,13 +238,19 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                 mInjector.actions.openInNewWindow(mState.stack);
                 break;
             case R.id.menu_paste_from_clipboard:
-                DirectoryFragment dir = getDirectoryFragment();
+                dir = getDirectoryFragment();
                 if (dir != null) {
                     dir.pasteFromClipboard();
                 }
                 break;
             case R.id.menu_settings:
                 mInjector.actions.openSettings(getCurrentRoot());
+                break;
+            case R.id.menu_select_all:
+                dir = getDirectoryFragment();
+                if (dir != null) {
+                    dir.selectAllFiles();
+                }
                 break;
             default:
                 return super.onOptionsItemSelected(item);

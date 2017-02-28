@@ -157,8 +157,6 @@ public abstract class BaseActivity
              */
             @Override
             public void onSearchChanged(@Nullable String query) {
-                // We should not get here if root is not searchable
-                assert (canSearchRoot());
                 reloadSearch(query);
             }
 
@@ -231,7 +229,7 @@ public abstract class BaseActivity
     @CallSuper
     public boolean onPrepareOptionsMenu(Menu menu) {
         super.onPrepareOptionsMenu(menu);
-        mSearchManager.showMenu(canSearchRoot());
+        mSearchManager.showMenu(mState.stack);
         return true;
     }
 
@@ -340,6 +338,13 @@ public abstract class BaseActivity
                 setDisplayAdvancedDevices(!mState.showAdvanced);
                 return true;
 
+            case R.id.menu_select_all:
+                DirectoryFragment dir = getDirectoryFragment();
+                if (dir != null) {
+                    dir.selectAllFiles();
+                }
+                return true;
+
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -431,11 +436,6 @@ public abstract class BaseActivity
             }
         }
         return authorities;
-    }
-
-    boolean canSearchRoot() {
-        final RootInfo root = getCurrentRoot();
-        return (root.flags & Root.FLAG_SUPPORTS_SEARCH) != 0;
     }
 
     public static BaseActivity get(Fragment fragment) {
