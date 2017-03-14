@@ -22,7 +22,6 @@ import static com.android.documentsui.base.State.MODE_GRID;
 
 import android.app.Activity;
 import android.app.Fragment;
-import android.app.FragmentManager;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -31,11 +30,10 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.MessageQueue.IdleHandler;
+import android.preference.PreferenceManager;
 import android.provider.DocumentsContract;
-import android.provider.DocumentsContract.Root;
 import android.support.annotation.CallSuper;
 import android.support.annotation.LayoutRes;
-import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
 import android.util.Log;
 import android.view.Menu;
@@ -54,8 +52,10 @@ import com.android.documentsui.base.State.ViewMode;
 import com.android.documentsui.dirlist.AnimationView;
 import com.android.documentsui.dirlist.DirectoryFragment;
 import com.android.documentsui.prefs.LocalPreferences;
+import com.android.documentsui.prefs.Preferences;
 import com.android.documentsui.prefs.PreferencesMonitor;
-import com.android.documentsui.queries.DebugCommandProcessor;
+import com.android.documentsui.prefs.ScopedPreferences;
+import com.android.documentsui.queries.CommandInterceptor;
 import com.android.documentsui.queries.SearchViewManager;
 import com.android.documentsui.queries.SearchViewManager.SearchManagerListener;
 import com.android.documentsui.roots.GetRootDocumentTask;
@@ -70,6 +70,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Executor;
+
+import javax.annotation.Nullable;
 
 public abstract class BaseActivity
         extends Activity implements CommonAddons, NavigationViewManager.Environment {
@@ -107,7 +109,6 @@ public abstract class BaseActivity
         mTag = tag;
     }
 
-    protected abstract void onTaskFinished(Uri... uris);
     protected abstract void refreshDirectory(int anim);
     /** Allows sub-classes to include information in a newly created State instance. */
     protected abstract void includeState(State initialState);
@@ -157,7 +158,11 @@ public abstract class BaseActivity
              */
             @Override
             public void onSearchChanged(@Nullable String query) {
-                reloadSearch(query);
+                if (query != null) {
+                    Metrics.logUserAction(BaseActivity.this, Metrics.USER_ACTION_SEARCH);
+                }
+
+                mInjector.actions.loadDocumentsForCurrentStack();
             }
 
             @Override
@@ -176,15 +181,31 @@ public abstract class BaseActivity
         // We piggy back on search input as it is the only text input
         // area in the app. But the functionality is independent
         // of "regular" search query processing.
-        DebugCommandProcessor dbgCommands = new DebugCommandProcessor();
-        dbgCommands.add(new DebugCommandProcessor.DumpRootsCacheHandler(this));
+        CommandInterceptor dbgCommands = new CommandInterceptor(mInjector.features);
+        dbgCommands.add(new CommandInterceptor.DumpRootsCacheHandler(this));
         mSearchManager = new SearchViewManager(searchListener, dbgCommands, icicle);
         mSortController = SortController.create(this, mState.derivedMode, mState.sortModel);
 
-        mPreferencesMonitor = new PreferencesMonitor(getApplicationContext());
+        mPreferencesMonitor = new PreferencesMonitor(
+                getApplicationContext().getPackageName(),
+                PreferenceManager.getDefaultSharedPreferences(this),
+                this::onPreferenceChanged);
+        mPreferencesMonitor.start();
 
         // Base classes must update result in their onCreate.
         setResult(Activity.RESULT_CANCELED);
+    }
+
+    public void onPreferenceChanged(String pref) {
+        // For now, we only work with prefs that we backup. This
+        // just limits the scope of what we expect to come flowing
+        // through here until we know we want more and fancier options.
+        assert(Preferences.shouldBackup(pref));
+
+        switch (pref) {
+            case ScopedPreferences.INCLUDE_DEVICE_ROOT:
+                updateDisplayAdvancedDevices(mInjector.prefs.getShowDeviceRoot());
+        }
     }
 
     @Override
@@ -214,18 +235,6 @@ public abstract class BaseActivity
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        mPreferencesMonitor.start();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        mPreferencesMonitor.stop();
-    }
-
-    @Override
     @CallSuper
     public boolean onPrepareOptionsMenu(Menu menu) {
         super.onPrepareOptionsMenu(menu);
@@ -236,6 +245,7 @@ public abstract class BaseActivity
     @Override
     protected void onDestroy() {
         mRootsMonitor.stop();
+        mPreferencesMonitor.stop();
         super.onDestroy();
     }
 
@@ -252,7 +262,6 @@ public abstract class BaseActivity
 
         state.sortModel = SortModel.createModel();
         state.localOnly = intent.getBooleanExtra(Intent.EXTRA_LOCAL_ONLY, false);
-        state.initAcceptMimes(intent);
         state.excludedAuthorities = getExcludedAuthorities();
 
         includeState(state);
@@ -302,11 +311,10 @@ public abstract class BaseActivity
         if (mRoots.isRecentsRoot(root)) {
             refreshCurrentRootAndDirectory(AnimationView.ANIM_NONE);
         } else {
-            new GetRootDocumentTask(
+            mInjector.actions.getRootDocument(
                     root,
-                    this,
-                    mInjector.actions::openContainerDocument)
-                    .executeOnExecutor(getExecutorForCurrentDirectory());
+                    TimeoutTask.DEFAULT_TIMEOUT,
+                    mInjector.actions::openRootDocument);
         }
     }
 
@@ -335,14 +343,11 @@ public abstract class BaseActivity
                 return true;
 
             case R.id.menu_advanced:
-                setDisplayAdvancedDevices(!mState.showAdvanced);
+                onDisplayAdvancedDevices();
                 return true;
 
             case R.id.menu_select_all:
-                DirectoryFragment dir = getDirectoryFragment();
-                if (dir != null) {
-                    dir.selectAllFiles();
-                }
+                getInjector().actions.selectAllFiles();
                 return true;
 
             default:
@@ -370,8 +375,7 @@ public abstract class BaseActivity
         return cwd != null
                 && cwd.isCreateSupported()
                 && !mSearchManager.isSearching()
-                && !root.isRecents()
-                && !root.isDownloads();
+                && !root.isRecents();
     }
 
     // TODO: make navigator listen to state
@@ -412,14 +416,6 @@ public abstract class BaseActivity
         invalidateOptionsMenu();
     }
 
-    private void reloadSearch(String query) {
-        FragmentManager fm = getFragmentManager();
-        RootInfo root = getCurrentRoot();
-        DocumentInfo cwd = getCurrentDirectory();
-
-        DirectoryFragment.reloadSearch(fm, root, cwd, query);
-    }
-
     private final List<String> getExcludedAuthorities() {
         List<String> authorities = new ArrayList<>();
         if (getIntent().getBooleanExtra(DocumentsContract.EXTRA_EXCLUDE_SELF, false)) {
@@ -454,13 +450,21 @@ public abstract class BaseActivity
     /**
      * Set internal storage visible based on explicit user action.
      */
-    void setDisplayAdvancedDevices(boolean display) {
+    private void onDisplayAdvancedDevices() {
+        boolean display = !mState.showAdvanced;
         Metrics.logUserAction(this,
                 display ? Metrics.USER_ACTION_SHOW_ADVANCED : Metrics.USER_ACTION_HIDE_ADVANCED);
 
         mInjector.prefs.setShowDeviceRoot(display);
+        updateDisplayAdvancedDevices(display);
+    }
+
+    private void updateDisplayAdvancedDevices(boolean display) {
         mState.showAdvanced = display;
-        RootsFragment.get(getFragmentManager()).onDisplayStateChanged();
+        @Nullable RootsFragment fragment = RootsFragment.get(getFragmentManager());
+        if (fragment != null) {
+            fragment.onDisplayStateChanged();
+        }
         invalidateOptionsMenu();
     }
 

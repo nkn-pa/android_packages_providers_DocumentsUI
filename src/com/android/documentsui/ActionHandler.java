@@ -16,17 +16,21 @@
 
 package com.android.documentsui;
 
-import android.content.ClipData;
+import android.content.ContentProvider;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.view.DragEvent;
 
 import com.android.documentsui.base.BooleanConsumer;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.dirlist.DocumentDetails;
-import com.android.documentsui.dirlist.Model;
+
+import java.util.function.Consumer;
+
+import javax.annotation.Nullable;
 
 public interface ActionHandler {
 
@@ -35,12 +39,20 @@ public interface ActionHandler {
     /**
      * Drops documents on a root.
      */
-    boolean dropOn(ClipData data, RootInfo root);
+    boolean dropOn(DragEvent event, RootInfo root);
 
     /**
      * Attempts to eject the identified root. Returns a boolean answer to listener.
      */
     void ejectRoot(RootInfo root, BooleanConsumer listener);
+
+
+    /**
+     * Attempts to fetch the DocumentInfo for the supplied root. Returns the DocumentInfo to the
+     * callback. If the task times out, callback will be called with null DocumentInfo. Supply
+     * {@link TimeoutTask#DEFAULT_TIMEOUT} if you don't want to the task to ever time out.
+     */
+    void getRootDocument(RootInfo root, int timeout, Consumer<DocumentInfo> callback);
 
     /**
      * Attempts to refresh the given DocumentInfo, which should be at the top of the state stack.
@@ -62,6 +74,10 @@ public interface ActionHandler {
 
     void pasteIntoFolder(RootInfo root);
 
+    void selectAllFiles();
+
+    @Nullable DocumentInfo renameDocument(String name, DocumentInfo document);
+
     boolean viewDocument(DocumentDetails doc);
 
     boolean previewDocument(DocumentDetails doc);
@@ -76,6 +92,8 @@ public interface ActionHandler {
     void springOpenDirectory(DocumentInfo doc);
 
     void showChooserForDoc(DocumentInfo doc);
+
+    void openRootDocument(@Nullable DocumentInfo rootDoc);
 
     void openContainerDocument(DocumentInfo doc);
 
@@ -97,9 +115,14 @@ public interface ActionHandler {
      */
     void initLocation(Intent intent);
 
+    void registerDisplayStateChangedListener(Runnable l);
+    void unregisterDisplayStateChangedListener(Runnable l);
+
+    void loadDocumentsForCurrentStack();
+
     /**
      * Allow action handler to be initialized in a new scope.
-     * @return
+     * @return this
      */
-    <T extends ActionHandler> T reset(Model model);
+    <T extends ActionHandler> T reset(DirectoryReloadLock reloadLock);
 }

@@ -19,10 +19,14 @@ package com.android.documentsui.base;
 import static com.android.documentsui.base.Shared.DEBUG;
 
 import android.content.ContentResolver;
+import android.database.Cursor;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.provider.DocumentsProvider;
 import android.util.Log;
+
+import com.android.documentsui.picker.LastAccessedProvider;
+import com.android.documentsui.roots.RootsAccess;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -84,9 +88,10 @@ public class DocumentStack implements Durable, Parcelable {
     public DocumentStack(DocumentStack src, DocumentInfo... docs) {
         mList = new LinkedList<>(src.mList);
         for (DocumentInfo doc : docs) {
-            mList.addLast(doc);
+            push(doc);
         }
 
+        mStackTouched = false;
         mRoot = src.mRoot;
     }
 
@@ -118,9 +123,13 @@ public class DocumentStack implements Durable, Parcelable {
     }
 
     public void push(DocumentInfo info) {
-        if (DEBUG) Log.d(TAG, "Adding doc to stack: " + info);
-        mList.addLast(info);
-        mStackTouched = true;
+        boolean alreadyInStack = mList.contains(info);
+        assert (!alreadyInStack);
+        if (!alreadyInStack) {
+            if (DEBUG) Log.d(TAG, "Adding doc to stack: " + info);
+            mList.addLast(info);
+            mStackTouched = true;
+        }
     }
 
     public DocumentInfo pop() {
@@ -163,27 +172,7 @@ public class DocumentStack implements Durable, Parcelable {
     }
 
     public boolean isRecents() {
-        return isEmpty();
-    }
-
-    public void updateRoot(Collection<RootInfo> matchingRoots) throws FileNotFoundException {
-        for (RootInfo root : matchingRoots) {
-            if (root.equals(this.mRoot)) {
-                this.mRoot = root;
-                return;
-            }
-        }
-        throw new FileNotFoundException("Failed to find matching mRoot for " + mRoot);
-    }
-
-    /**
-     * Update a possibly stale restored stack against a live
-     * {@link DocumentsProvider}.
-     */
-    public void updateDocuments(ContentResolver resolver) throws FileNotFoundException {
-        for (DocumentInfo info : mList) {
-            info.updateSelf(resolver);
-        }
+        return mRoot != null && mRoot.isRecents();
     }
 
     /**
@@ -211,6 +200,47 @@ public class DocumentStack implements Durable, Parcelable {
     public void reset() {
         mList.clear();
         mRoot = null;
+    }
+
+    private void updateRoot(Collection<RootInfo> matchingRoots) throws FileNotFoundException {
+        for (RootInfo root : matchingRoots) {
+            // RootInfo's equals() only checks authority and rootId, so this will update RootInfo if
+            // its flag has changed.
+            if (root.equals(this.mRoot)) {
+                this.mRoot = root;
+                return;
+            }
+        }
+        throw new FileNotFoundException("Failed to find matching mRoot for " + mRoot);
+    }
+
+    /**
+     * Update a possibly stale restored stack against a live
+     * {@link DocumentsProvider}.
+     */
+    private void updateDocuments(ContentResolver resolver) throws FileNotFoundException {
+        for (DocumentInfo info : mList) {
+            info.updateSelf(resolver);
+        }
+    }
+
+    public static @Nullable DocumentStack fromLastAccessedCursor(
+            Cursor cursor, Collection<RootInfo> matchingRoots, ContentResolver resolver)
+            throws IOException {
+
+        if (cursor.moveToFirst()) {
+            DocumentStack stack = new DocumentStack();
+            final byte[] rawStack = cursor.getBlob(
+                    cursor.getColumnIndex(LastAccessedProvider.Columns.STACK));
+            DurableUtils.readFromArray(rawStack, stack);
+
+            stack.updateRoot(matchingRoots);
+            stack.updateDocuments(resolver);
+
+            return stack;
+        }
+
+        return null;
     }
 
     @Override

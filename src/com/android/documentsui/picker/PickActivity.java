@@ -53,6 +53,7 @@ import com.android.documentsui.ProviderExecutor;
 import com.android.documentsui.R;
 import com.android.documentsui.SharedInputHandler;
 import com.android.documentsui.base.DocumentInfo;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.base.MimeTypes;
 import com.android.documentsui.base.PairedTask;
 import com.android.documentsui.base.RootInfo;
@@ -89,6 +90,7 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
     public void onCreate(Bundle icicle) {
 
         mInjector = new Injector<>(
+                Features.create(getResources()),
                 new Config(),
                 ScopedPreferences.create(this, PREFERENCES_SCOPE),
                 new MessageBuilder(this),
@@ -102,22 +104,13 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
                         : SelectionManager.MODE_SINGLE);
 
         mInjector.focusManager = new FocusManager(
+                mInjector.features,
                 mInjector.selectionMgr,
                 mDrawer,
                 this::focusSidebar,
                 getColor(R.color.accent_dark));
 
         mInjector.menuManager = new MenuManager(mSearchManager, mState, new DirectoryDetails(this));
-        mInjector.actions = new ActionHandler<>(
-                this,
-                mState,
-                mRoots,
-                mDocs,
-                mInjector.focusManager,
-                mInjector.selectionMgr,
-                mSearchManager,
-                ProviderExecutor::forAuthority,
-                mInjector.config);
 
         mInjector.actionModeController = new ActionModeController(
                 this,
@@ -125,10 +118,21 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
                 mInjector.menuManager,
                 mInjector.messages);
 
+        mInjector.actions = new ActionHandler<>(
+                this,
+                mState,
+                mRoots,
+                mDocs,
+                mSearchManager,
+                ProviderExecutor::forAuthority,
+                mInjector);
+
+        mInjector.searchManager = mSearchManager;
+
         Intent intent = getIntent();
 
-        mSharedInputHandler = new SharedInputHandler(mInjector.focusManager, this::popDir);
-
+        mSharedInputHandler =
+                new SharedInputHandler(mInjector.focusManager, this::popDir, mInjector.features);
         setupLayout(intent);
         mInjector.actions.initLocation(intent);
     }
@@ -159,6 +163,10 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
     @Override
     protected void includeState(State state) {
         final Intent intent = getIntent();
+
+        String defaultMimeType = (intent.getType() == null) ? "*/*" : intent.getType();
+        state.initAcceptMimes(intent, defaultMimeType);
+
         final String action = intent.getAction();
         if (Intent.ACTION_OPEN_DOCUMENT.equals(action)) {
             state.action = ACTION_OPEN;
@@ -273,22 +281,16 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
         final RootInfo root = getCurrentRoot();
         final DocumentInfo cwd = getCurrentDirectory();
 
-        if (cwd == null) {
-            // No directory means recents
-            if (mState.action == ACTION_CREATE ||
-                mState.action == ACTION_PICK_COPY_DESTINATION) {
-                mInjector.actions.loadRoot(Shared.getDefaultRootUri(this));
-            } else {
-                DirectoryFragment.showRecentsOpen(fm, anim);
+        if (mState.stack.isRecents()) {
+            DirectoryFragment.showRecentsOpen(fm, anim);
 
-                // In recents we pick layout mode based on the mimetype,
-                // picking GRID for visual types. We intentionally don't
-                // consult a user's saved preferences here since they are
-                // set per root (not per root and per mimetype).
-                boolean visualMimes = MimeTypes.mimeMatches(
-                        MimeTypes.VISUAL_MIMES, mState.acceptMimes);
-                mState.derivedMode = visualMimes ? State.MODE_GRID : State.MODE_LIST;
-            }
+            // In recents we pick layout mode based on the mimetype,
+            // picking GRID for visual types. We intentionally don't
+            // consult a user's saved preferences here since they are
+            // set per root (not per root and per mimetype).
+            boolean visualMimes = MimeTypes.mimeMatches(
+                    MimeTypes.VISUAL_MIMES, mState.acceptMimes);
+            mState.derivedMode = visualMimes ? State.MODE_GRID : State.MODE_LIST;
         } else {
                 // Normal boring directory
                 DirectoryFragment.showDirectory(fm, root, cwd, anim);
@@ -384,8 +386,7 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
                 getContentResolver(), Shared.getCallingPackageName(this), mState.stack);
     }
 
-    @Override
-    protected void onTaskFinished(Uri... uris) {
+    private void onTaskFinished(Uri... uris) {
         if (DEBUG) Log.d(TAG, "onFinished() " + Arrays.toString(uris));
 
         final Intent intent = new Intent();

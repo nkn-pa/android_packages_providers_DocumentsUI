@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
-package com.android.documentsui.dirlist;
+package com.android.documentsui;
 
-import static com.android.documentsui.base.DocumentInfo.getCursorInt;
 import static com.android.documentsui.base.DocumentInfo.getCursorString;
 import static com.android.documentsui.base.Shared.DEBUG;
-import static com.android.documentsui.base.Shared.ENABLE_OMC_API_FEATURES;
 import static com.android.documentsui.base.Shared.VERBOSE;
 
 import android.annotation.IntDef;
@@ -35,10 +33,10 @@ import android.support.annotation.VisibleForTesting;
 import android.util.Log;
 
 import com.android.documentsui.DirectoryResult;
-import com.android.documentsui.archives.ArchivesProvider;
+import com.android.documentsui.base.DocumentFilters;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.EventListener;
-import com.android.documentsui.base.Shared;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.roots.RootCursorWrapper;
 import com.android.documentsui.selection.Selection;
 
@@ -58,32 +56,13 @@ import java.util.function.Predicate;
 @VisibleForTesting
 public class Model {
 
-    /**
-     * Filter that passes (returns true) for all files which can be shared.
-     */
-    public static final Predicate<Cursor> SHARABLE_FILE_FILTER = (Cursor c) -> {
-        int flags = getCursorInt(c, Document.COLUMN_FLAGS);
-        String authority = getCursorString(c, RootCursorWrapper.COLUMN_AUTHORITY);
-        if (!ENABLE_OMC_API_FEATURES) {
-            return (flags & Document.FLAG_PARTIAL) == 0
-                    && (flags & Document.FLAG_VIRTUAL_DOCUMENT) == 0
-                    && !ArchivesProvider.AUTHORITY.equals(authority);
-        }
-        return (flags & Document.FLAG_PARTIAL) == 0
-                && !ArchivesProvider.AUTHORITY.equals(authority);
-    };
-
-    /**
-     * Filter that passes (returns true) only virtual documents.
-     */
-    public static final Predicate<Cursor> VIRTUAL_DOCUMENT_FILTER  = (Cursor c) -> {
-        int flags = getCursorInt(c, Document.COLUMN_FLAGS);
-        return (flags & Document.FLAG_VIRTUAL_DOCUMENT) != 0;
-    };
-
-    private static final Predicate<Cursor> ANY_FILE_FILTER = (Cursor c) -> true;
-
     private static final String TAG = "Model";
+
+    public @Nullable String info;
+    public @Nullable String error;
+    public @Nullable DocumentInfo doc;
+
+    private final Features mFeatures;
 
     /** Maps Model ID to cursor positions, for looking up items by Model ID. */
     private final Map<String, Integer> mPositions = new HashMap<>();
@@ -91,13 +70,13 @@ public class Model {
 
     private boolean mIsLoading;
     private List<EventListener<Update>> mUpdateListeners = new ArrayList<>();
-    @Nullable private Cursor mCursor;
+    private @Nullable Cursor mCursor;
     private int mCursorCount;
     private String mIds[] = new String[0];
 
-    @Nullable String info;
-    @Nullable String error;
-    @Nullable DocumentInfo doc;
+    public Model(Features features) {
+        mFeatures = features;
+    }
 
     public void addUpdateListener(EventListener<Update> listener) {
         mUpdateListeners.add(listener);
@@ -114,22 +93,13 @@ public class Model {
     }
 
     private void notifyUpdateListeners(Exception e) {
-        Update error = new Update(e);
+        Update error = new Update(e, mFeatures.isRemoteActionsEnabled());
         for (EventListener<Update> handler: mUpdateListeners) {
             handler.accept(error);
         }
     }
 
-    void onLoaderReset() {
-        if (mIsLoading) {
-            Log.w(TAG, "Received unexpected loader reset while in loading state for doc: "
-                    + DocumentInfo.debugString(doc));
-        }
-
-        reset();
-    }
-
-    private void reset() {
+    public void reset() {
         mCursor = null;
         mCursorCount = 0;
         mIds = new String[0];
@@ -142,7 +112,8 @@ public class Model {
         notifyUpdateListeners();
     }
 
-    void update(DirectoryResult result) {
+    @VisibleForTesting
+    protected void update(DirectoryResult result) {
         assert(result != null);
 
         if (DEBUG) Log.i(TAG, "Updating model with new result set.");
@@ -170,7 +141,7 @@ public class Model {
     }
 
     @VisibleForTesting
-    int getItemCount() {
+    public int getItemCount() {
         return mCursorCount;
     }
 
@@ -231,12 +202,12 @@ public class Model {
         return mCursorCount == 0;
     }
 
-    boolean isLoading() {
+    public boolean isLoading() {
         return mIsLoading;
     }
 
     public List<DocumentInfo> getDocuments(Selection selection) {
-        return loadDocuments(selection, ANY_FILE_FILTER);
+        return loadDocuments(selection, DocumentFilters.ANY);
     }
 
     public @Nullable DocumentInfo getDocument(String modelId) {
@@ -316,16 +287,19 @@ public class Model {
 
         private final @UpdateType int mUpdateType;
         private final @Nullable Exception mException;
+        private final boolean mRemoteActionEnabled;
 
         private Update() {
             mUpdateType = TYPE_UPDATE;
             mException = null;
+            mRemoteActionEnabled = false;
         }
 
-        public Update(Exception exception) {
+        public Update(Exception exception, boolean remoteActionsEnabled) {
             assert(exception != null);
             mUpdateType = TYPE_UPDATE_EXCEPTION;
             mException = exception;
+            mRemoteActionEnabled = remoteActionsEnabled;
         }
 
         public boolean isUpdate() {
@@ -337,7 +311,8 @@ public class Model {
         }
 
         public boolean hasRecoverableException() {
-            return Shared.ENABLE_OMC_API_FEATURES && hasException()
+            return mRemoteActionEnabled
+                    && hasException()
                     && mException instanceof RecoverableSecurityException;
         }
 

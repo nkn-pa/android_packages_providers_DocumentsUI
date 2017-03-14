@@ -20,6 +20,7 @@ import android.annotation.IntDef;
 import android.content.Intent;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.provider.DocumentsContract;
 import android.util.SparseArray;
 
 import com.android.documentsui.services.FileOperationService;
@@ -79,10 +80,6 @@ public class State implements android.os.Parcelable {
     public boolean localOnly;
     public boolean showDeviceStorageOption;
     public boolean showAdvanced;
-    /*
-     * Indicates handler was an external app, like photos.
-     */
-    public boolean external;
 
     // Indicates that a copy operation (or move) includes a directory.
     // Why? Directory creation isn't supported by some roots (like Downloads).
@@ -108,12 +105,11 @@ public class State implements android.os.Parcelable {
     /** Name of the package that started DocsUI */
     public List<String> excludedAuthorities = new ArrayList<>();
 
-    public void initAcceptMimes(Intent intent) {
+    public void initAcceptMimes(Intent intent, String defaultAcceptMimeType) {
         if (intent.hasExtra(Intent.EXTRA_MIME_TYPES)) {
             acceptMimes = intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES);
         } else {
-            String glob = intent.getType();
-            acceptMimes = new String[] { glob != null ? glob : "*/*" };
+            acceptMimes = new String[] { defaultAcceptMimeType };
         }
     }
 
@@ -130,7 +126,6 @@ public class State implements android.os.Parcelable {
         out.writeInt(localOnly ? 1 : 0);
         out.writeInt(showDeviceStorageOption ? 1 : 0);
         out.writeInt(showAdvanced ? 1 : 0);
-        out.writeInt(external ? 1 : 0);
         DurableUtils.writeToParcel(out, stack);
         out.writeMap(dirConfigs);
         out.writeList(excludedAuthorities);
@@ -153,7 +148,6 @@ public class State implements android.os.Parcelable {
             state.localOnly = in.readInt() != 0;
             state.showDeviceStorageOption = in.readInt() != 0;
             state.showAdvanced = in.readInt() != 0;
-            state.external = in.readInt() != 0;
             DurableUtils.readFromParcel(in, state.stack);
             in.readMap(state.dirConfigs, loader);
             in.readList(state.excludedAuthorities, loader);

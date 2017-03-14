@@ -17,7 +17,6 @@
 package com.android.documentsui.files;
 
 import android.app.Fragment;
-import android.content.Context;
 import android.view.KeyEvent;
 import android.view.KeyboardShortcutGroup;
 import android.view.KeyboardShortcutInfo;
@@ -31,21 +30,22 @@ import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
+import com.android.documentsui.prefs.ScopedPreferences;
 import com.android.documentsui.queries.SearchViewManager;
 
 import java.util.List;
 import java.util.function.IntFunction;
 
 public final class MenuManager extends com.android.documentsui.MenuManager {
-    private final Context mContext;
+    private final ScopedPreferences mPreferences;
 
     public MenuManager(
-            Context context,
+            ScopedPreferences preferences,
             SearchViewManager searchManager,
             State displayState,
             DirectoryDetails dirDetails) {
         super(searchManager, displayState, dirDetails);
-        mContext = context;
+        mPreferences = preferences;
     }
 
     @Override
@@ -133,7 +133,9 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
 
     @Override
     protected void updateSettings(MenuItem settings) {
-        settings.setVisible(mDirDetails.hasRootSettings());
+        boolean enabled = mDirDetails.hasRootSettings();
+        settings.setVisible(enabled);
+        settings.setEnabled(enabled);
     }
 
     @Override
@@ -143,18 +145,21 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
 
     @Override
     protected void updateOpenInContextMenu(MenuItem open, SelectionDetails selectionDetails) {
+        open.setVisible(true);
         open.setEnabled(selectionDetails.size() == 1
                 && !selectionDetails.containsPartialFiles());
     }
 
     @Override
     protected void updateOpenWith(MenuItem openWith, SelectionDetails selectionDetails) {
+        openWith.setVisible(true);
         openWith.setEnabled(selectionDetails.canOpenWith());
     }
 
     @Override
     protected void updateOpenInNewWindow(
             MenuItem openInNewWindow, SelectionDetails selectionDetails) {
+        openInNewWindow.setVisible(true);
         openInNewWindow.setEnabled(selectionDetails.size() == 1
             && !selectionDetails.containsPartialFiles());
     }
@@ -180,23 +185,27 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
     @Override
     protected void updateCompress(MenuItem compress, SelectionDetails selectionDetails) {
         final boolean readOnly = !mDirDetails.canCreateDoc();
-        compress.setVisible(Shared.isCompressingEnabled(mContext));
+        compress.setVisible(mPreferences.getEnableArchiveCreation());
         compress.setEnabled(!readOnly && !selectionDetails.containsPartialFiles() &&
                 !selectionDetails.canExtract());
     }
 
     @Override
     protected void updateExtractTo(MenuItem extractTo, SelectionDetails selectionDetails) {
-        extractTo.setVisible(selectionDetails.canExtract());
+        boolean enabled = selectionDetails.canExtract();
+        extractTo.setVisible(enabled);
+        extractTo.setEnabled(enabled);
     }
 
     @Override
     protected void updatePasteInto(MenuItem pasteInto, SelectionDetails selectionDetails) {
+        pasteInto.setVisible(true);
         pasteInto.setEnabled(selectionDetails.canPasteInto() && mDirDetails.hasItemsToPaste());
     }
 
     @Override
     protected void updatePasteInto(MenuItem pasteInto, RootInfo root, DocumentInfo docInfo) {
+        pasteInto.setVisible(true);
         pasteInto.setEnabled(root.supportsCreate()
                 && docInfo != null
                 && docInfo.isCreateSupported()
@@ -206,6 +215,7 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
     @Override
     protected void updateSelectAll(MenuItem selectAll) {
         selectAll.setVisible(true);
+        selectAll.setEnabled(true);
     }
 
     @Override
@@ -216,14 +226,18 @@ public final class MenuManager extends com.android.documentsui.MenuManager {
 
     @Override
     protected void updateShare(MenuItem share, SelectionDetails selectionDetails) {
-        share.setVisible(!selectionDetails.containsDirectories()
+        boolean enabled = !selectionDetails.containsDirectories()
                 && !selectionDetails.containsPartialFiles()
-                && !selectionDetails.canExtract());
+                && !selectionDetails.canExtract();
+        share.setVisible(enabled);
+        share.setEnabled(enabled);
     }
 
     @Override
     protected void updateDelete(MenuItem delete, SelectionDetails selectionDetails) {
-        delete.setVisible(selectionDetails.canDelete());
+        boolean enabled = selectionDetails.canDelete();
+        delete.setVisible(enabled);
+        delete.setEnabled(enabled);
     }
 
     @Override

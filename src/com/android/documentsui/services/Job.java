@@ -181,19 +181,23 @@ abstract public class Job implements Runnable {
         return Uri.parse(String.format("data,%s-%s", tag, id));
     }
 
-    ContentProviderClient getClient(DocumentInfo doc) throws RemoteException {
-        ContentProviderClient client = mClients.get(doc.authority);
+    ContentProviderClient getClient(Uri uri) throws RemoteException {
+        ContentProviderClient client = mClients.get(uri.getAuthority());
         if (client == null) {
             // Acquire content providers.
             client = acquireUnstableProviderOrThrow(
                     getContentResolver(),
-                    doc.authority);
+                    uri.getAuthority());
 
-            mClients.put(doc.authority, client);
+            mClients.put(uri.getAuthority(), client);
         }
 
         assert(client != null);
         return client;
+    }
+
+    ContentProviderClient getClient(DocumentInfo doc) throws RemoteException {
+        return getClient(doc.derivedUri);
     }
 
     final void cleanup() {
@@ -316,9 +320,9 @@ abstract public class Job implements Runnable {
      * Creates an intent for navigating back to the destination directory.
      */
     Intent buildNavigateIntent(String tag) {
+        // TODO (b/35721285): Reuse an existing task rather than creating a new one every time.
         Intent intent = new Intent(service, FilesActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.setAction(DocumentsContract.ACTION_BROWSE);
         intent.setData(getDataUriForIntent(tag));
         intent.putExtra(Shared.EXTRA_STACK, (Parcelable) stack);
         return intent;

@@ -16,16 +16,20 @@
 
 package com.android.documentsui;
 
+import static com.android.documentsui.base.Shared.VERBOSE;
+
 import android.content.AsyncTaskLoader;
 import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.OperationCanceledException;
 import android.os.RemoteException;
 import android.provider.DocumentsContract.Document;
@@ -36,7 +40,6 @@ import com.android.documentsui.base.DebugFlags;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.FilteringCursorWrapper;
 import com.android.documentsui.base.RootInfo;
-import com.android.documentsui.base.Shared;
 import com.android.documentsui.roots.RootCursorWrapper;
 import com.android.documentsui.sorting.SortModel;
 
@@ -100,34 +103,42 @@ public class DirectoryLoader extends AsyncTaskLoader<DirectoryResult> {
             }
             result.client = client;
 
-            Bundle queryArgs = new Bundle();
-            mModel.addQuerySortArgs(queryArgs);
+            Resources resources = getContext().getResources();
+            if (resources.getBoolean(R.bool.feature_content_paging)) {
+                Bundle queryArgs = new Bundle();
+                mModel.addQuerySortArgs(queryArgs);
 
-            // TODO: At some point we don't want forced flags to override real paging...
-            // and that point is when we have real paging.
-            DebugFlags.addForcedPagingArgs(queryArgs);
+                // TODO: At some point we don't want forced flags to override real paging...
+                // and that point is when we have real paging.
+                DebugFlags.addForcedPagingArgs(queryArgs);
 
-            cursor = client.query(mUri, null, queryArgs, mSignal);
-            if (cursor == null) {
-                throw new RemoteException("Provider returned null");
+                cursor = client.query(mUri, null, queryArgs, mSignal);
+            } else {
+                cursor = client.query(
+                        mUri, null, null, null, mModel.getDocumentSortQuery(), mSignal);
             }
 
-            Bundle extras = cursor.getExtras();
-            if (extras.containsKey(ContentResolver.QUERY_RESULT_SIZE)) {
-                Log.i(TAG, "[PAGING INDICATED] Cursor extras specify recordset size of: "
-                        + extras.getInt(ContentResolver.QUERY_RESULT_SIZE));
+            if (cursor == null) {
+                throw new RemoteException("Provider returned null");
             }
 
             cursor.registerContentObserver(mObserver);
 
             cursor = new RootCursorWrapper(mUri.getAuthority(), mRoot.rootId, cursor, -1);
 
-            if (mSearchMode && !Shared.ENABLE_OMC_API_FEATURES) {
+            if (mSearchMode && !resources.getBoolean(R.bool.feature_folders_in_search_results)) {
                 // There is no findDocumentPath API. Enable filtering on folders in search mode.
                 cursor = new FilteringCursorWrapper(cursor, null, SEARCH_REJECT_MIMES);
             }
 
-            cursor = mModel.sortCursor(cursor);
+            // TODO: When API tweaks have landed, use ContentResolver.EXTRA_HONORED_ARGS
+            // instead of checking directly for ContentResolver.QUERY_ARG_SORT_COLUMNS (won't work)
+            if (resources.getBoolean(R.bool.feature_content_paging)
+                        && cursor.getExtras().containsKey(ContentResolver.QUERY_ARG_SORT_COLUMNS)) {
+                if (VERBOSE) Log.d(TAG, "Skipping sort of pre-sorted cursor. Booya!");
+            } else {
+                cursor = mModel.sortCursor(cursor);
+            }
             result.cursor = cursor;
         } catch (Exception e) {
             Log.w(TAG, "Failed to query", e);
@@ -210,7 +221,7 @@ public class DirectoryLoader extends AsyncTaskLoader<DirectoryResult> {
         private final Runnable mContentChangedCallback;
 
         public LockingContentObserver(DirectoryReloadLock lock, Runnable contentChangedCallback) {
-            super(new Handler());
+            super(new Handler(Looper.getMainLooper()));
             mLock = lock;
             mContentChangedCallback = contentChangedCallback;
         }

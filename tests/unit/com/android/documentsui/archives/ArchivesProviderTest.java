@@ -48,7 +48,8 @@ import java.util.concurrent.CountDownLatch;
 @MediumTest
 public class ArchivesProviderTest extends AndroidTestCase {
     private static final Uri ARCHIVE_URI = Uri.parse("content://i/love/strawberries");
-    private static final String NOTIFICATION_URI = "content://notification-uri";
+    private static final String NOTIFICATION_URI =
+            "content://com.android.documentsui.archives/notification-uri";
     private ExecutorService mExecutor = null;
     private Archive mArchive = null;
     private TestUtils mTestUtils = null;
@@ -66,6 +67,17 @@ public class ArchivesProviderTest extends AndroidTestCase {
         mExecutor.shutdown();
         assertTrue(mExecutor.awaitTermination(3 /* timeout */, TimeUnit.SECONDS));
         super.tearDown();
+    }
+
+    public void testQueryRoots() throws InterruptedException {
+        final ContentResolver resolver = getContext().getContentResolver();
+        final Uri rootsUri = DocumentsContract.buildRootsUri(ArchivesProvider.AUTHORITY);
+        try (final ContentProviderClient client = resolver.acquireUnstableContentProviderClient(
+                rootsUri)) {
+            final Cursor cursor = resolver.query(rootsUri, null, null, null, null, null);
+            assertNotNull("Cursor must not be null.", cursor);
+            assertEquals(0, cursor.getCount());
+        }
     }
 
     public void testOpen_Success() throws InterruptedException {
@@ -104,7 +116,7 @@ public class ArchivesProviderTest extends AndroidTestCase {
             });
         }
 
-        latch.await(3, TimeUnit.SECONDS);
+        latch.await(30, TimeUnit.SECONDS);
         {
             final Cursor cursor = resolver.query(childrenUri, null, null, null, null, null);
             assertNotNull("Cursor must not be null. File not found?", cursor);
@@ -156,7 +168,7 @@ public class ArchivesProviderTest extends AndroidTestCase {
             });
         }
 
-        latch.await(3, TimeUnit.SECONDS);
+        latch.await(30, TimeUnit.SECONDS);
         {
             final Cursor cursor = resolver.query(childrenUri, null, null, null, null, null);
             assertNotNull("Cursor must not be null. File not found?", cursor);

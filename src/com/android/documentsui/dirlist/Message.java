@@ -25,7 +25,7 @@ import com.android.documentsui.R;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.dirlist.DocumentsAdapter.Environment;
-import com.android.documentsui.dirlist.Model.Update;
+import com.android.documentsui.Model.Update;
 
 /**
  * Data object used by {@link InflateMessageDocumentHolder} and {@link HeaderMessageDocumentHolder}.
@@ -115,7 +115,8 @@ abstract class Message {
         }
 
         private void updateToRecoverableExceptionHeader(Update event) {
-            assert(Shared.ENABLE_OMC_API_FEATURES);
+            assert(mEnv.getFeatures().isRemoteActionsEnabled());
+
             RootInfo root = mEnv.getDisplayState().stack.getRoot();
             update(mEnv.getContext().getResources().getText(R.string.authentication_required),
                     mEnv.getContext().getString(R.string.open_app, root.title),

@@ -18,10 +18,9 @@ package com.android.documentsui.roots;
 
 import android.annotation.Nullable;
 import android.app.Activity;
-import android.app.Fragment;
-import android.content.Context;
 import android.util.Log;
 
+import com.android.documentsui.DocumentsAccess;
 import com.android.documentsui.TimeoutTask;
 import com.android.documentsui.base.CheckedTask;
 import com.android.documentsui.base.DocumentInfo;
@@ -39,46 +38,33 @@ public class GetRootDocumentTask extends TimeoutTask<Void, DocumentInfo> {
     private final static String TAG = "GetRootDocumentTask";
 
     private final RootInfo mRootInfo;
-    private final Context mContext;
     private final Consumer<DocumentInfo> mCallback;
-    private boolean mForceCallback;
+    private final DocumentsAccess mDocs;
 
     public GetRootDocumentTask(
-            RootInfo rootInfo, Activity activity, Consumer<DocumentInfo> callback) {
-        this(rootInfo, activity, activity::isDestroyed, callback);
-    }
-
-    public GetRootDocumentTask(
-            RootInfo rootInfo, Fragment fragment, Consumer<DocumentInfo> callback) {
-        this(rootInfo, fragment.getContext(), fragment::isDetached, callback);
-    }
-
-    public GetRootDocumentTask(
-            RootInfo rootInfo, Context context, Check check, Consumer<DocumentInfo> callback) {
-        super(check);
+            RootInfo rootInfo,
+            Activity activity,
+            long timeout,
+            DocumentsAccess docs,
+            Consumer<DocumentInfo> callback) {
+        super(activity::isDestroyed, timeout);
         mRootInfo = rootInfo;
-        mContext = context.getApplicationContext();
+        mDocs = docs;
         mCallback = callback;
     }
 
-    public void setForceCallback(boolean forceCallback) {
-        mForceCallback = forceCallback;
-    }
-
     @Override
-    public @Nullable DocumentInfo run(Void... rootInfo) {
-        return mRootInfo.getRootDocumentBlocking(mContext);
+    public @Nullable DocumentInfo run(Void... args) {
+        return mDocs.getRootDocument(mRootInfo);
     }
 
     @Override
     public void finish(@Nullable DocumentInfo documentInfo) {
         if (documentInfo == null) {
             Log.e(TAG,
-                    "Cannot find document info for root: " + mRootInfo + " in the given timeout");
+                    "Cannot find document info for root: " + mRootInfo);
         }
 
-        if (documentInfo != null || mForceCallback) {
-            mCallback.accept(documentInfo);
-        }
+        mCallback.accept(documentInfo);
     }
 }

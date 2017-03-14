@@ -28,17 +28,17 @@ import android.provider.DocumentsContract.Path;
 import android.support.test.filters.MediumTest;
 import android.support.test.runner.AndroidJUnit4;
 
-import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
-import com.android.documentsui.base.DocumentStackTest;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.dirlist.DocumentDetails;
-import com.android.documentsui.dirlist.Model;
 import com.android.documentsui.files.LauncherActivity;
+import com.android.documentsui.sorting.SortDimension;
+import com.android.documentsui.sorting.SortModel;
 import com.android.documentsui.testing.DocumentStackAsserts;
 import com.android.documentsui.testing.Roots;
 import com.android.documentsui.testing.TestEnv;
+import com.android.documentsui.testing.TestEventHandler;
 import com.android.documentsui.testing.TestRootsAccess;
 
 import org.junit.Before;
@@ -46,7 +46,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * A unit test *for* AbstractActionHandler, not an abstract test baseclass.
@@ -61,17 +60,16 @@ public class AbstractActionHandlerTest {
 
     @Before
     public void setUp() {
-        mActivity = TestActivity.create();
         mEnv = TestEnv.create();
+        mActivity = TestActivity.create(mEnv);
         mHandler = new AbstractActionHandler<TestActivity>(
                 mActivity,
                 mEnv.state,
                 mEnv.roots,
                 mEnv.docs,
-                mEnv.focusHandler,
-                mEnv.selectionMgr,
                 mEnv.searchViewManager,
-                mEnv::lookupExecutor) {
+                mEnv::lookupExecutor,
+                mEnv.injector) {
 
             @Override
             public void openRoot(RootInfo root) {
@@ -91,11 +89,6 @@ public class AbstractActionHandlerTest {
             @Override
             protected void launchToDefaultLocation() {
                 throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T extends ActionHandler> T reset(Model model) {
-                return null;
             }
         };
     }
@@ -121,8 +114,6 @@ public class AbstractActionHandlerTest {
                 Arrays.asList(TestEnv.FOLDER_1.documentId, TestEnv.FOLDER_2.documentId));
         mEnv.docs.nextDocuments = Arrays.asList(TestEnv.FOLDER_1, TestEnv.FOLDER_2);
 
-        mEnv.state.stack.push(TestEnv.FOLDER_0);
-
         mHandler.openContainerDocument(TestEnv.FOLDER_2);
 
         mEnv.beforeAsserts();
@@ -139,8 +130,6 @@ public class AbstractActionHandlerTest {
         mEnv.searchViewManager.isSearching = true;
         mEnv.docs.nextDocuments = Arrays.asList(TestEnv.FOLDER_1, TestEnv.FOLDER_2);
 
-        mEnv.state.stack.push(TestEnv.FOLDER_0);
-
         mHandler.openContainerDocument(TestEnv.FOLDER_2);
 
         mEnv.beforeAsserts();
@@ -148,6 +137,18 @@ public class AbstractActionHandlerTest {
         assertEquals(2, mEnv.state.stack.size());
         assertEquals(TestEnv.FOLDER_2, mEnv.state.stack.pop());
         assertEquals(TestEnv.FOLDER_0, mEnv.state.stack.pop());
+    }
+
+    @Test
+    public void testOpensDocument_AssertionErrorIfAlreadyInStack() throws Exception {
+        mEnv.populateStack();
+        boolean threw = false;
+        try {
+            mEnv.state.stack.push(TestEnv.FOLDER_0);
+        } catch (AssertionError e) {
+            threw = true;
+        }
+        assertTrue(threw);
     }
 
     @Test
@@ -196,5 +197,40 @@ public class AbstractActionHandlerTest {
                 Arrays.asList(TestEnv.FOLDER_0, TestEnv.FOLDER_1));
         mEnv.docs.lastUri.assertLastArgument(TestEnv.FILE_GIF.derivedUri);
         mActivity.refreshCurrentRootAndDirectory.assertCalled();
+    }
+
+    @Test
+    public void testLoadChildrenDocuments() throws Exception {
+        mEnv.state.stack.changeRoot(TestRootsAccess.HOME);
+        mEnv.state.stack.push(TestEnv.FOLDER_0);
+
+        mEnv.state.sortModel.sortByUser(
+                SortModel.SORT_DIMENSION_ID_TITLE, SortDimension.SORT_DIRECTION_ASCENDING);
+
+        mEnv.providers.get(TestRootsAccess.HOME.authority)
+                .setNextChildDocumentsReturns(TestEnv.FILE_APK, TestEnv.FILE_GIF);
+
+        mHandler.loadDocumentsForCurrentStack();
+        mActivity.loaderManager.runAsyncTaskLoader(AbstractActionHandler.LOADER_ID);
+
+        assertEquals(2, mEnv.model.getItemCount());
+        String[] modelIds = mEnv.model.getModelIds();
+        assertEquals(TestEnv.FILE_APK, mEnv.model.getDocument(modelIds[0]));
+        assertEquals(TestEnv.FILE_GIF, mEnv.model.getDocument(modelIds[1]));
+    }
+
+    @Test
+    public void testLoadChildrenDocuments_failsWithNonRecentsAndEmptyStack() throws Exception {
+        mEnv.state.stack.changeRoot(TestRootsAccess.HOME);
+
+        mEnv.providers.get(TestRootsAccess.HOME.authority)
+                .setNextChildDocumentsReturns(TestEnv.FILE_APK, TestEnv.FILE_GIF);
+
+        TestEventHandler<Model.Update> listener = new TestEventHandler<>();
+        mEnv.model.addUpdateListener(listener::accept);
+
+        mHandler.loadDocumentsForCurrentStack();
+
+        assertTrue(listener.getLastValue().hasException());
     }
 }

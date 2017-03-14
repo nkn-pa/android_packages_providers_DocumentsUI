@@ -141,6 +141,11 @@ public class DocumentsProviderHelper {
         try (AutoCloseOutputStream out = new AutoCloseOutputStream(file)) {
             out.write(contents, 0, contents.length);
         }
+        waitForWrite();
+    }
+
+    public void waitForWrite() throws RemoteException {
+        mClient.call("waitForWrite", null, null);
     }
 
     public byte[] readDocument(Uri documentUri) throws RemoteException, IOException {

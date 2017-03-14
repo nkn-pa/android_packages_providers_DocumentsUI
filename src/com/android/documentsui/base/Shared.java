@@ -51,8 +51,6 @@ public final class Shared {
     public static final boolean DEBUG = true;
     public static final boolean VERBOSE = DEBUG && Log.isLoggable(TAG, Log.VERBOSE);
 
-    public static final boolean ENABLE_OMC_API_FEATURES = true;
-
     /** Intent action name to pick a copy destination. */
     public static final String ACTION_PICK_COPY_DESTINATION =
             "com.android.documentsui.PICK_COPY_DESTINATION";
@@ -79,11 +77,6 @@ public final class Shared {
     public static final String EXTRA_STATE = "state";
 
     /**
-     * Extra flag used to store type of DirectoryFragment's type ResultType type in the bundle.
-     */
-    public static final String EXTRA_TYPE = "type";
-
-    /**
      * Extra flag used to store root of type RootInfo in the bundle.
      */
     public static final String EXTRA_ROOT = "root";
@@ -97,11 +90,6 @@ public final class Shared {
      * Extra flag used to store DirectoryFragment's selection of Selection type in the bundle.
      */
     public static final String EXTRA_SELECTION = "selection";
-
-    /**
-     * Extra flag used to store DirectoryFragment's search mode of boolean type in the bundle.
-     */
-    public static final String EXTRA_SEARCH_MODE = "searchMode";
 
     /**
      * Extra flag used to store DirectoryFragment's ignore state of boolean type in the bundle.
@@ -249,13 +237,6 @@ public final class Shared {
      */
     public static boolean shouldShowDocumentsRoot(Context context) {
         return context.getResources().getBoolean(R.bool.show_documents_root);
-    }
-
-    /**
-     * Returns true if compressing is enabled.
-     */
-    public static boolean isCompressingEnabled(Context context) {
-        return context.getResources().getBoolean(R.bool.enable_compressing);
     }
 
     /*

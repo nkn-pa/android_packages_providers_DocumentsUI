@@ -17,8 +17,6 @@
 package com.android.documentsui.picker;
 
 import static com.android.documentsui.base.Shared.DEBUG;
-import static com.android.documentsui.base.State.ACTION_GET_CONTENT;
-import static com.android.documentsui.base.State.ACTION_PICK_COPY_DESTINATION;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -31,24 +29,22 @@ import android.util.Log;
 import com.android.documentsui.AbstractActionHandler;
 import com.android.documentsui.ActivityConfig;
 import com.android.documentsui.DocumentsAccess;
+import com.android.documentsui.Injector;
 import com.android.documentsui.Metrics;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
-import com.android.documentsui.base.EventListener;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.base.Lookup;
-import com.android.documentsui.base.MimeTypes;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
 import com.android.documentsui.dirlist.AnimationView;
 import com.android.documentsui.dirlist.DocumentDetails;
-import com.android.documentsui.dirlist.FocusHandler;
-import com.android.documentsui.dirlist.Model;
-import com.android.documentsui.dirlist.Model.Update;
+import com.android.documentsui.Model;
 import com.android.documentsui.picker.ActionHandler.Addons;
 import com.android.documentsui.queries.SearchViewManager;
 import com.android.documentsui.roots.RootsAccess;
-import com.android.documentsui.selection.SelectionManager;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.concurrent.Executor;
 
@@ -61,6 +57,7 @@ class ActionHandler<T extends Activity & Addons> extends AbstractActionHandler<T
 
     private static final String TAG = "PickerActionHandler";
 
+    private final Features mFeatures;
     private final ActivityConfig mConfig;
     private @Nullable Model mModel;
 
@@ -69,15 +66,15 @@ class ActionHandler<T extends Activity & Addons> extends AbstractActionHandler<T
             State state,
             RootsAccess roots,
             DocumentsAccess docs,
-            FocusHandler focusHandler,
-            SelectionManager selectionMgr,
             SearchViewManager searchMgr,
             Lookup<String, Executor> executors,
-            ActivityConfig activityConfig) {
+            Injector injector) {
 
-        super(activity, state, roots, docs, focusHandler, selectionMgr, searchMgr, executors);
+        super(activity, state, roots, docs, searchMgr, executors, injector);
 
-        mConfig = activityConfig;
+        mConfig = injector.config;
+        mFeatures = injector.features;
+        mModel = injector.getModel();
     }
 
     @Override
@@ -100,7 +97,7 @@ class ActionHandler<T extends Activity & Addons> extends AbstractActionHandler<T
             return;
         }
 
-        if (Shared.ENABLE_OMC_API_FEATURES && launchToDocument(intent)) {
+        if (mFeatures.isLaunchToDocumentEnabled() && launchToDocument(intent)) {
             if (DEBUG) Log.d(TAG, "Launched to a document.");
             return;
         }
@@ -139,7 +136,35 @@ class ActionHandler<T extends Activity & Addons> extends AbstractActionHandler<T
 
     private void loadLastAccessedStack() {
         if (DEBUG) Log.d(TAG, "Attempting to load last used stack for calling package.");
-        new LoadLastAccessedStackTask<>(mActivity, mState, mRoots).execute();
+        new LoadLastAccessedStackTask<>(mActivity, mState, mRoots, this::onLastAccessedStackLoaded)
+                .execute();
+    }
+
+    @VisibleForTesting
+    void onLastAccessedStackLoaded(@Nullable DocumentStack stack) {
+        if (stack == null) {
+            loadDefaultLocation();
+        } else {
+            mState.stack.reset(stack);
+            mActivity.refreshCurrentRootAndDirectory(AnimationView.ANIM_NONE);
+        }
+    }
+
+    private void loadDefaultLocation() {
+        switch (mState.action) {
+            case State.ACTION_PICK_COPY_DESTINATION:
+            case State.ACTION_CREATE:
+                loadHomeDir();
+                break;
+            case State.ACTION_GET_CONTENT:
+            case State.ACTION_OPEN:
+            case State.ACTION_OPEN_TREE:
+                mState.stack.changeRoot(mRoots.getRecentsRoot());
+                mActivity.refreshCurrentRootAndDirectory(AnimationView.ANIM_NONE);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unexpected action type: " + mState.action);
+        }
     }
 
     @Override
@@ -195,16 +220,6 @@ class ActionHandler<T extends Activity & Addons> extends AbstractActionHandler<T
         }
         return false;
     }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public ActionHandler<T> reset(Model model) {
-        assert(model != null);
-        mModel = model;
-
-        return this;
-    }
-
 
     public interface Addons extends CommonAddons {
         void onAppPicked(ResolveInfo info);

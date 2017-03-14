@@ -21,24 +21,31 @@ import static com.android.documentsui.base.Shared.DEBUG;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
+import android.content.ContentProviderClient;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.net.Uri;
 import android.provider.DocumentsContract;
-import android.provider.DocumentsContract.Root;
-import android.provider.DocumentsContract.Document;
 import android.util.Log;
+import android.view.DragEvent;
 
 import com.android.documentsui.AbstractActionHandler;
 import com.android.documentsui.ActionModeAddons;
 import com.android.documentsui.ActivityConfig;
 import com.android.documentsui.DocumentsAccess;
 import com.android.documentsui.DocumentsApplication;
+import com.android.documentsui.DragAndDropHelper;
+import com.android.documentsui.Injector;
 import com.android.documentsui.Metrics;
+import com.android.documentsui.Model;
 import com.android.documentsui.R;
+import com.android.documentsui.TimeoutTask;
 import com.android.documentsui.base.ConfirmationCallback;
 import com.android.documentsui.base.ConfirmationCallback.Result;
+import com.android.documentsui.base.DocumentFilters;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.base.Lookup;
 import com.android.documentsui.base.MimeTypes;
 import com.android.documentsui.base.RootInfo;
@@ -49,14 +56,10 @@ import com.android.documentsui.clipping.DocumentClipper;
 import com.android.documentsui.clipping.UrisSupplier;
 import com.android.documentsui.dirlist.AnimationView;
 import com.android.documentsui.dirlist.DocumentDetails;
-import com.android.documentsui.dirlist.FocusHandler;
-import com.android.documentsui.dirlist.Model;
 import com.android.documentsui.files.ActionHandler.Addons;
 import com.android.documentsui.queries.SearchViewManager;
-import com.android.documentsui.roots.GetRootDocumentTask;
 import com.android.documentsui.roots.RootsAccess;
 import com.android.documentsui.selection.Selection;
-import com.android.documentsui.selection.SelectionManager;
 import com.android.documentsui.services.FileOperation;
 import com.android.documentsui.services.FileOperationService;
 import com.android.documentsui.services.FileOperations;
@@ -77,46 +80,58 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
     private static final String TAG = "ManagerActionHandler";
 
     private final ActionModeAddons mActionModeAddons;
+    private final Features mFeatures;
+    private final ActivityConfig mConfig;
     private final DialogController mDialogs;
-    private final ActivityConfig mActConfig;
     private final DocumentClipper mClipper;
     private final ClipStore mClipStore;
-    private @Nullable Model mModel;
+    private final Model mModel;
 
     ActionHandler(
             T activity,
             State state,
             RootsAccess roots,
             DocumentsAccess docs,
-            FocusHandler focusHandler,
-            SelectionManager selectionMgr,
             SearchViewManager searchMgr,
             Lookup<String, Executor> executors,
             ActionModeAddons actionModeAddons,
-            DialogController dialogs,
-            ActivityConfig tuner,
             DocumentClipper clipper,
-            ClipStore clipStore) {
+            ClipStore clipStore,
+            Injector injector) {
 
-        super(activity, state, roots, docs, focusHandler, selectionMgr, searchMgr, executors);
+        super(activity, state, roots, docs, searchMgr, executors, injector);
 
         mActionModeAddons = actionModeAddons;
-        mDialogs = dialogs;
-        mActConfig = tuner;
+        mFeatures = injector.features;
+        mConfig = injector.config;
+        mDialogs = injector.dialogs;
         mClipper = clipper;
         mClipStore = clipStore;
+        mModel = injector.getModel();
     }
 
     @Override
-    public boolean dropOn(ClipData data, RootInfo root) {
-        new GetRootDocumentTask(
+    public boolean dropOn(DragEvent event, RootInfo root) {
+        // DragEvent gets recycled, so it is possible that by the time the callback is called,
+        // event.getLocalState() and event.getClipData() returns null. Thus, we want to save
+        // references to ensure they are non null.
+        final ClipData clipData = event.getClipData();
+        final Object localState = event.getLocalState();
+        getRootDocument(
                 root,
-                mActivity,
-                mActivity::isDestroyed,
-                (DocumentInfo doc) -> mClipper.copyFromClipData(
-                        root, doc, data, mDialogs::showFileOperationStatus)
-        ).executeOnExecutor(mExecutors.lookup(root.authority));
+                TimeoutTask.DEFAULT_TIMEOUT,
+                (DocumentInfo rootDoc) -> dropOnCallback(clipData, localState, rootDoc, root));
         return true;
+    }
+
+    private void dropOnCallback(
+            ClipData clipData, Object localState, DocumentInfo rootDoc, RootInfo root) {
+        if (!DragAndDropHelper.canCopyTo(localState, rootDoc)) {
+            return;
+        }
+
+        mClipper.copyFromClipData(
+                root, rootDoc, clipData, mDialogs::showFileOperationStatus);
     }
 
     @Override
@@ -138,18 +153,34 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
 
     @Override
     public void pasteIntoFolder(RootInfo root) {
-        new GetRootDocumentTask(
+        this.getRootDocument(
                 root,
-                mActivity,
-                mActivity::isDestroyed,
-                (DocumentInfo doc) -> pasteIntoFolder(root, doc)
-        ).executeOnExecutor(mExecutors.lookup(root.authority));
+                TimeoutTask.DEFAULT_TIMEOUT,
+                (DocumentInfo doc) -> pasteIntoFolder(root, doc));
     }
 
-    private void pasteIntoFolder(RootInfo root, DocumentInfo doc) {
-        DocumentClipper clipper = DocumentsApplication.getDocumentClipper(mActivity);
+    private void pasteIntoFolder(RootInfo root, @Nullable DocumentInfo doc) {
         DocumentStack stack = new DocumentStack(root, doc);
-        clipper.copyFromClipboard(doc, stack, mDialogs::showFileOperationStatus);
+        mClipper.copyFromClipboard(doc, stack, mDialogs::showFileOperationStatus);
+    }
+
+    @Override
+    public @Nullable DocumentInfo renameDocument(String name, DocumentInfo document) {
+        ContentResolver resolver = mActivity.getContentResolver();
+        ContentProviderClient client = null;
+
+        try {
+            client = DocumentsApplication.acquireUnstableProviderOrThrow(
+                    resolver, document.derivedUri.getAuthority());
+            Uri newUri = DocumentsContract.renameDocument(
+                    client, document.derivedUri, name);
+            return DocumentInfo.fromUri(resolver, newUri);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to rename file", e);
+            return null;
+        } finally {
+            ContentProviderClient.releaseQuietly(client);
+        }
     }
 
     @Override
@@ -167,7 +198,7 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
             return false;
         }
 
-        if (mActConfig.isDocumentEnabled(doc.mimeType, doc.flags, mState)) {
+        if (mConfig.isDocumentEnabled(doc.mimeType, doc.flags, mState)) {
             onDocumentPicked(doc);
             mSelectionMgr.clearSelection();
             return true;
@@ -294,8 +325,8 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
         assert(!selection.isEmpty());
 
         // Model must be accessed in UI thread, since underlying cursor is not threadsafe.
-        List<DocumentInfo> docs =
-                mModel.loadDocuments(selection, Model.SHARABLE_FILE_FILTER);
+        List<DocumentInfo> docs = mModel.loadDocuments(
+                selection, DocumentFilters.sharable(mFeatures));
 
         Intent intent;
 
@@ -326,8 +357,8 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.addCategory(Intent.CATEGORY_DEFAULT);
 
-        if (Shared.ENABLE_OMC_API_FEATURES
-                && mModel.hasDocuments(selection, Model.VIRTUAL_DOCUMENT_FILTER)) {
+        if (mFeatures.isVirtualFilesSharingEnabled()
+                && mModel.hasDocuments(selection, DocumentFilters.VIRTUAL)) {
             intent.addCategory(Intent.CATEGORY_TYPED_OPENABLE);
         }
 
@@ -399,7 +430,10 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
     }
 
     private boolean launchToRoot(Intent intent) {
-        if (DocumentsContract.ACTION_BROWSE.equals(intent.getAction())) {
+        String action = intent.getAction();
+        // TODO: Remove the "BROWSE" action once our min runtime in O.
+        if (Intent.ACTION_VIEW.equals(action)
+                || "android.provider.action.BROWSE".equals(action)) {
             Uri uri = intent.getData();
             if (DocumentsContract.isRootUri(mActivity, uri)) {
                 if (DEBUG) Log.d(TAG, "Launching with root URI.");
@@ -413,7 +447,7 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
     }
 
     private boolean launchToDocument(Intent intent) {
-        if (DocumentsContract.ACTION_BROWSE.equals(intent.getAction())) {
+        if (Intent.ACTION_VIEW.equals(intent.getAction())) {
             Uri uri = intent.getData();
             if (DocumentsContract.isDocumentUri(mActivity, uri)) {
                 return launchToDocument(intent.getData());
@@ -433,7 +467,7 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
         }
 
         Intent intent = Intent.createChooser(buildViewIntent(doc), null);
-        if (Shared.ENABLE_OMC_API_FEATURES) {
+        if (Features.OMC_RUNTIME) {
             intent.putExtra(Intent.EXTRA_AUTO_LAUNCH_SINGLE_CHOICE, false);
         }
         try {
@@ -587,16 +621,6 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
         intent.setFlags(flags);
 
         return intent;
-    }
-
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public ActionHandler<T> reset(Model model) {
-        assert(model != null);
-        mModel = model;
-
-        return this;
     }
 
     public interface Addons extends CommonAddons {

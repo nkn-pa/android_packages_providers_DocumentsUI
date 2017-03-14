@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.documentsui.dirlist;
+package com.android.documentsui.testing;
 
 import android.database.MatrixCursor;
 import android.os.Bundle;
@@ -22,7 +22,9 @@ import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 
 import com.android.documentsui.DirectoryResult;
+import com.android.documentsui.Model;
 import com.android.documentsui.base.DocumentInfo;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.roots.RootCursorWrapper;
 
 import libcore.net.MimeUtils;
@@ -45,8 +47,8 @@ public class TestModel extends Model {
     private Random mRand = new Random();
     private MatrixCursor mCursor;
 
-    public TestModel(String authority) {
-        super();
+    public TestModel(String authority, Features features) {
+        super(features);
         mAuthority = authority;
         reset();
     }

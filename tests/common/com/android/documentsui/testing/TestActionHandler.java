@@ -23,7 +23,7 @@ import com.android.documentsui.ActionHandler;
 import com.android.documentsui.TestActivity;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.dirlist.DocumentDetails;
-import com.android.documentsui.dirlist.Model;
+import com.android.documentsui.Model;
 
 public class TestActionHandler extends AbstractActionHandler<TestActivity> {
 
@@ -38,14 +38,13 @@ public class TestActionHandler extends AbstractActionHandler<TestActivity> {
 
     public TestActionHandler(TestEnv env) {
         super(
-                TestActivity.create(),
+                TestActivity.create(env),
                 env.state,
                 env.roots,
                 env.docs,
-                env.focusHandler,
-                env.selectionMgr,
                 env.searchViewManager,
-                (String authority) -> null);
+                (String authority) -> null,
+                env.injector);
     }
 
     @Override
@@ -81,10 +80,5 @@ public class TestActionHandler extends AbstractActionHandler<TestActivity> {
     @Override
     protected void launchToDefaultLocation() {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <T extends ActionHandler> T reset(Model model) {
-        return null;
     }
 }

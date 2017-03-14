@@ -51,11 +51,15 @@
     <dimen name="doc_header_sort_icon_size">16dp</dimen>
     <dimen name="doc_header_height">60dp</dimen>
 
-    <dimen name="dropdown_sort_widget_margin">20dp</dimen>
-    <dimen name="dropdown_sort_widget_icon_size">30dp</dimen>
+    <dimen name="dropdown_sort_widget_margin">12dp</dimen>
+    <dimen name="dropdown_sort_widget_size">36dp</dimen>
 
     <dimen name="drop_icon_height">14dp</dimen>
     <dimen name="drop_icon_width">14dp</dimen>
 
     <dimen name="header_message_horizontal_padding">8dp</dimen>
+
+    <dimen name="fastscroll_default_thickness">8dp</dimen>
+    <dimen name="fastscroll_minimum_range">50dp</dimen>
+    <dimen name="fastscroll_margin">0dp</dimen>
 </resources>

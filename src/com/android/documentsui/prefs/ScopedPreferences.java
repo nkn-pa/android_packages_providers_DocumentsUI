@@ -17,8 +17,11 @@ package com.android.documentsui.prefs;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
+
+import com.android.documentsui.R;
 
 /**
  * Provides an interface (and runtime implementation) for preferences that are
@@ -28,44 +31,62 @@ import android.text.TextUtils;
  */
 public interface ScopedPreferences {
 
-    static final String INCLUDE_DEVICE_ROOT = "includeDeviceRoot-";
+    static final String INCLUDE_DEVICE_ROOT = "includeDeviceRoot";
+    static final String ENABLE_ARCHIVE_CREATION = "enableArchiveCreation-";
 
     boolean getShowDeviceRoot();
     void setShowDeviceRoot(boolean display);
+
+    boolean getEnableArchiveCreation();
+    void setEnableArchiveCreation(boolean enabled);
 
     /**
      * @param scope An arbitrary string representitive of the scope
      *        for prefs that are set using this object.
      */
     public static ScopedPreferences create(Context context, String scope) {
-        return new RuntimeScopedPreferences(
+        return new RuntimeScopedPreferences(context.getResources(),
                 PreferenceManager.getDefaultSharedPreferences(context), scope);
     }
 
     static final class RuntimeScopedPreferences implements ScopedPreferences {
 
+        private Resources mResources;
         private SharedPreferences mSharedPrefs;
         private String mScope;
 
-        private RuntimeScopedPreferences(SharedPreferences sharedPrefs, String scope)  {
+        private RuntimeScopedPreferences(Resources resources, SharedPreferences sharedPrefs,
+                String scope)  {
             assert(!TextUtils.isEmpty(scope));
 
+            mResources = resources;
             mSharedPrefs = sharedPrefs;
             mScope = scope;
         }
 
         @Override
         public boolean getShowDeviceRoot() {
-            return mSharedPrefs.getBoolean(INCLUDE_DEVICE_ROOT + mScope, false);
+            return mSharedPrefs.getBoolean(INCLUDE_DEVICE_ROOT, false);
         }
 
         @Override
         public void setShowDeviceRoot(boolean display) {
-            mSharedPrefs.edit().putBoolean(INCLUDE_DEVICE_ROOT + mScope, display).apply();
+            mSharedPrefs.edit().putBoolean(INCLUDE_DEVICE_ROOT, display).apply();
+        }
+
+        @Override
+        public boolean getEnableArchiveCreation() {
+            final boolean defaultValue = mResources.getBoolean(R.bool.feature_archive_creation);
+            return mSharedPrefs.getBoolean(ENABLE_ARCHIVE_CREATION + mScope, defaultValue);
+        }
+
+        @Override
+        public void setEnableArchiveCreation(boolean enabled) {
+            mSharedPrefs.edit().putBoolean(ENABLE_ARCHIVE_CREATION + mScope, enabled).apply();
         }
     }
 
     static boolean shouldBackup(String s) {
-        return (s != null) ? s.startsWith(INCLUDE_DEVICE_ROOT) : false;
+        return INCLUDE_DEVICE_ROOT.equals(s);
     }
 }

@@ -16,24 +16,32 @@
 
 package com.android.documentsui;
 
+import static com.android.documentsui.base.DocumentInfo.getCursorInt;
+import static com.android.documentsui.base.DocumentInfo.getCursorString;
+import static com.android.documentsui.base.Shared.DEBUG;
+
 import android.app.Activity;
-import android.content.ClipData;
+import android.app.LoaderManager.LoaderCallbacks;
+import android.content.Context;
 import android.content.Intent;
+import android.content.Loader;
 import android.content.pm.ResolveInfo;
+import android.database.Cursor;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.Parcelable;
 import android.provider.DocumentsContract;
-import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
 import android.util.Log;
+import android.view.DragEvent;
 
 import com.android.documentsui.AbstractActionHandler.CommonAddons;
 import com.android.documentsui.LoadDocStackTask.LoadDocStackCallback;
-import com.android.documentsui.archives.ArchivesProvider;
 import com.android.documentsui.base.BooleanConsumer;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.base.Lookup;
+import com.android.documentsui.base.Providers;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
@@ -43,22 +51,29 @@ import com.android.documentsui.dirlist.DocumentDetails;
 import com.android.documentsui.dirlist.FocusHandler;
 import com.android.documentsui.files.LauncherActivity;
 import com.android.documentsui.queries.SearchViewManager;
+import com.android.documentsui.roots.GetRootDocumentTask;
 import com.android.documentsui.roots.LoadRootTask;
 import com.android.documentsui.roots.RootsAccess;
 import com.android.documentsui.selection.Selection;
 import com.android.documentsui.selection.SelectionManager;
 import com.android.documentsui.sidebar.EjectRootTask;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+
+import javax.annotation.Nullable;
 
 /**
  * Provides support for specializing the actions (viewDocument etc.) to the host activity.
  */
 public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
         implements ActionHandler {
+
+    @VisibleForTesting
+    static final int LOADER_ID = 42;
 
     private static final String TAG = "AbstractActionHandler";
     private static final int REFRESH_SPINNER_TIMEOUT = 500;
@@ -71,34 +86,52 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
     protected final SelectionManager mSelectionMgr;
     protected final SearchViewManager mSearchMgr;
     protected final Lookup<String, Executor> mExecutors;
+    protected final Injector mInjector;
 
+    private final LoaderBindings mBindings;
+
+    private Runnable mDisplayStateChangedListener;
+
+    private DirectoryReloadLock mDirectoryReloadLock;
+
+    @Override
+    public void registerDisplayStateChangedListener(Runnable l) {
+        mDisplayStateChangedListener = l;
+    }
+    @Override
+    public void unregisterDisplayStateChangedListener(Runnable l) {
+        if (mDisplayStateChangedListener == l) {
+            mDisplayStateChangedListener = null;
+        }
+    }
 
     public AbstractActionHandler(
             T activity,
             State state,
             RootsAccess roots,
             DocumentsAccess docs,
-            FocusHandler focusHandler,
-            SelectionManager selectionMgr,
             SearchViewManager searchMgr,
-            Lookup<String, Executor> executors) {
+            Lookup<String, Executor> executors,
+            Injector injector) {
 
         assert(activity != null);
         assert(state != null);
         assert(roots != null);
-        assert(focusHandler != null);
-        assert(selectionMgr != null);
         assert(searchMgr != null);
         assert(docs != null);
+        assert(injector != null);
 
         mActivity = activity;
         mState = state;
         mRoots = roots;
         mDocs = docs;
-        mFocusHandler = focusHandler;
-        mSelectionMgr = selectionMgr;
+        mFocusHandler = injector.focusManager;
+        mSelectionMgr = injector.selectionMgr;
         mSearchMgr = searchMgr;
         mExecutors = executors;
+        mInjector = injector;
+
+        mBindings = new LoaderBindings();
     }
 
     @Override
@@ -111,9 +144,26 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
     }
 
     @Override
+    public void getRootDocument(RootInfo root, int timeout, Consumer<DocumentInfo> callback) {
+        GetRootDocumentTask task = new GetRootDocumentTask(
+                root,
+                mActivity,
+                timeout,
+                mDocs,
+                callback);
+
+        task.executeOnExecutor(mExecutors.lookup(root.authority));
+    }
+
+    @Override
     public void refreshDocument(DocumentInfo doc, BooleanConsumer callback) {
-        RefreshTask task = new RefreshTask(mState, doc, REFRESH_SPINNER_TIMEOUT,
-                mActivity.getApplicationContext(), mActivity::isDestroyed,
+        RefreshTask task = new RefreshTask(
+                mInjector.features,
+                mState,
+                doc,
+                REFRESH_SPINNER_TIMEOUT,
+                mActivity.getApplicationContext(),
+                mActivity::isDestroyed,
                 callback);
         task.executeOnExecutor(mExecutors.lookup(doc == null ? null : doc.authority));
     }
@@ -161,13 +211,47 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
     }
 
     @Override
-    public boolean dropOn(ClipData data, RootInfo root) {
+    public boolean dropOn(DragEvent event, RootInfo root) {
         throw new UnsupportedOperationException("Can't open an app.");
     }
 
     @Override
     public void pasteIntoFolder(RootInfo root) {
         throw new UnsupportedOperationException("Can't paste into folder.");
+    }
+
+    @Override
+    public void selectAllFiles() {
+        Metrics.logUserAction(mActivity, Metrics.USER_ACTION_SELECT_ALL);
+        Model model = mInjector.getModel();
+
+        // Exclude disabled files
+        List<String> enabled = new ArrayList<>();
+        for (String id : model.getModelIds()) {
+            Cursor cursor = model.getItem(id);
+            if (cursor == null) {
+                Log.w(TAG, "Skipping selection. Can't obtain cursor for modeId: " + id);
+                continue;
+            }
+            String docMimeType = getCursorString(
+                    cursor, DocumentsContract.Document.COLUMN_MIME_TYPE);
+            int docFlags = getCursorInt(cursor, DocumentsContract.Document.COLUMN_FLAGS);
+            if (mInjector.config.isDocumentEnabled(docMimeType, docFlags, mState)) {
+                enabled.add(id);
+            }
+        }
+
+        // Only select things currently visible in the adapter.
+        boolean changed = mSelectionMgr.setItemsSelected(enabled, true);
+        if (changed) {
+            mDisplayStateChangedListener.run();
+        }
+    }
+
+    @Override
+    @Nullable
+    public DocumentInfo renameDocument(String name, DocumentInfo document) {
+        throw new UnsupportedOperationException("Can't rename documents.");
     }
 
     @Override
@@ -183,6 +267,18 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
     @Override
     public void showChooserForDoc(DocumentInfo doc) {
         throw new UnsupportedOperationException("Show chooser for doc not supported!");
+    }
+
+    @Override
+    public void openRootDocument(@Nullable DocumentInfo rootDoc) {
+        if (rootDoc == null) {
+            // There are 2 cases where rootDoc is null -- 1) loading recents; 2) failed to load root
+            // document. Either case we should call refreshCurrentRootAndDirectory() to let
+            // DirectoryFragment update UI.
+            mActivity.refreshCurrentRootAndDirectory(AnimationView.ANIM_NONE);
+        } else {
+            openContainerDocument(rootDoc);
+        }
     }
 
     @Override
@@ -289,9 +385,25 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
                 .executeOnExecutor(mExecutors.lookup(uri.getAuthority()));
     }
 
+    @Override
+    public void loadDocumentsForCurrentStack() {
+        DocumentStack stack = mState.stack;
+        if (!stack.isRecents() && stack.isEmpty()) {
+            DirectoryResult result = new DirectoryResult();
+
+            // TODO (b/35996595): Consider plumbing through the actual exception, though it might
+            // not be very useful (always pointing to DatabaseUtils#readExceptionFromParcel()).
+            result.exception = new IllegalStateException("Failed to load root document.");
+            mInjector.getModel().update(result);
+            return;
+        }
+
+        mActivity.getLoaderManager().restartLoader(LOADER_ID, null, mBindings);
+    }
+
     protected final boolean launchToDocument(Uri uri) {
         // We don't support launching to a document in an archive.
-        if (!ArchivesProvider.AUTHORITY.equals(uri.getAuthority())) {
+        if (!Providers.isArchiveUri(uri)) {
             loadDocument(uri, this::onStackLoaded);
             return true;
         }
@@ -328,6 +440,65 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
         return mSelectionMgr.getSelection(new Selection());
     }
 
+    public ActionHandler reset(DirectoryReloadLock reloadLock) {
+        mDirectoryReloadLock = reloadLock;
+        mActivity.getLoaderManager().destroyLoader(LOADER_ID);
+        return this;
+    }
+
+    private final class LoaderBindings implements LoaderCallbacks<DirectoryResult> {
+
+        @Override
+        public Loader<DirectoryResult> onCreateLoader(int id, Bundle args) {
+            Context context = mActivity;
+
+            if (mState.stack.isRecents()) {
+
+                if (DEBUG) Log.d(TAG, "Creating new loader recents.");
+                return new RecentsLoader(context, mRoots, mState, mInjector.features);
+
+            } else {
+
+                Uri contentsUri = mSearchMgr.isSearching()
+                        ? DocumentsContract.buildSearchDocumentsUri(
+                            mState.stack.getRoot().authority,
+                            mState.stack.getRoot().rootId,
+                            mSearchMgr.getCurrentSearch())
+                        : DocumentsContract.buildChildDocumentsUri(
+                                mState.stack.peek().authority,
+                                mState.stack.peek().documentId);
+
+                if (mInjector.config.managedModeEnabled(mState.stack)) {
+                    contentsUri = DocumentsContract.setManageMode(contentsUri);
+                }
+
+                if (DEBUG) Log.d(TAG,
+                        "Creating new directory loader for: "
+                                + DocumentInfo.debugString(mState.stack.peek()));
+
+                return new DirectoryLoader(
+                        context,
+                        mState.stack.getRoot(),
+                        mState.stack.peek(),
+                        contentsUri,
+                        mState.sortModel,
+                        mDirectoryReloadLock,
+                        mSearchMgr.isSearching());
+            }
+        }
+
+        @Override
+        public void onLoadFinished(Loader<DirectoryResult> loader, DirectoryResult result) {
+            if (DEBUG) Log.d(TAG, "Loader has finished for: "
+                    + DocumentInfo.debugString(mState.stack.peek()));
+            assert(result != null);
+
+            mInjector.getModel().update(result);
+        }
+
+        @Override
+        public void onLoaderReset(Loader<DirectoryResult> loader) {}
+    }
     /**
      * A class primarily for the support of isolating our tests
      * from our concrete activity implementations.

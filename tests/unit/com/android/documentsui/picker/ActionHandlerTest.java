@@ -16,9 +16,6 @@
 
 package com.android.documentsui.picker;
 
-import static com.android.documentsui.base.State.ACTION_GET_CONTENT;
-import static com.android.documentsui.base.State.ACTION_PICK_COPY_DESTINATION;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -30,10 +27,10 @@ import android.support.test.filters.MediumTest;
 import android.support.test.runner.AndroidJUnit4;
 
 import com.android.documentsui.R;
-import com.android.documentsui.base.DocumentInfo;
-import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
+import com.android.documentsui.base.State;
+import com.android.documentsui.base.State.ActionType;
 import com.android.documentsui.testing.DocumentStackAsserts;
 import com.android.documentsui.testing.TestEnv;
 import com.android.documentsui.testing.TestRootsAccess;
@@ -44,7 +41,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
-import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
 @MediumTest
@@ -58,7 +54,7 @@ public class ActionHandlerTest {
     @Before
     public void setUp() {
         mEnv = TestEnv.create();
-        mActivity = TestActivity.create();
+        mActivity = TestActivity.create(mEnv);
         mDialogs = new TestDialogController();
         mEnv.roots.configurePm(mActivity.packageMgr);
 
@@ -67,18 +63,14 @@ public class ActionHandlerTest {
                 mEnv.state,
                 mEnv.roots,
                 mEnv.docs,
-                mEnv.focusHandler,
-                mEnv.selectionMgr,
                 mEnv.searchViewManager,
                 mEnv::lookupExecutor,
-                null  // tuner, not currently used.
+                mEnv.injector
                 );
 
         mDialogs.confirmNext();
 
         mEnv.selectionMgr.toggleSelection("1");
-
-        mHandler.reset(mEnv.model);
     }
 
     @Test
@@ -127,12 +119,59 @@ public class ActionHandlerTest {
     }
 
     @Test
+    public void testOnLastAccessedStackLoaded_defaultToRecents_getContent() throws Exception {
+        testOnLastAccessedStackLoaded_defaultToRecentsOnAction(State.ACTION_GET_CONTENT);
+    }
+
+    @Test
+    public void testOnLastAccessedStackLoaded_defaultToRecents_open() throws Exception {
+        testOnLastAccessedStackLoaded_defaultToRecentsOnAction(State.ACTION_OPEN);
+    }
+
+    @Test
+    public void testOnLastAccessedStackLoaded_defaultToRecents_openTree() throws Exception {
+        testOnLastAccessedStackLoaded_defaultToRecentsOnAction(State.ACTION_OPEN_TREE);
+    }
+
+    @Test
+    public void testOnLastAccessedStackLoaded_DefaultsToDownloads_create() throws Exception {
+        testOnLastAccessedStackLoaded_defaultToDownloadsOnAction(State.ACTION_CREATE);
+    }
+
+    @Test
+    public void testOnLastAccessedStackLoaded_DefaultsToDownloads_pickCopyDestination()
+            throws Exception {
+        testOnLastAccessedStackLoaded_defaultToDownloadsOnAction(
+                State.ACTION_PICK_COPY_DESTINATION);
+    }
+
+    @Test
     public void testOpenContainerDocument() {
         mHandler.openContainerDocument(TestEnv.FOLDER_0);
 
         assertEquals(TestEnv.FOLDER_0, mEnv.state.stack.peek());
 
         mActivity.refreshCurrentRootAndDirectory.assertCalled();
+    }
+
+    private void testOnLastAccessedStackLoaded_defaultToRecentsOnAction(@ActionType int action) {
+        mEnv.state.action = action;
+        mActivity.refreshCurrentRootAndDirectory.assertNotCalled();
+
+        mHandler.onLastAccessedStackLoaded(null);
+
+        assertEquals(TestRootsAccess.RECENTS, mEnv.state.stack.getRoot());
+        mActivity.refreshCurrentRootAndDirectory.assertCalled();
+    }
+
+    private void testOnLastAccessedStackLoaded_defaultToDownloadsOnAction(@ActionType int action)
+            throws Exception {
+        mEnv.state.action = action;
+        mActivity.refreshCurrentRootAndDirectory.assertNotCalled();
+
+        mHandler.onLastAccessedStackLoaded(null);
+
+        assertRootPicked(TestRootsAccess.DOWNLOADS.getUri());
     }
 
     private void assertRootPicked(Uri expectedUri) throws Exception {

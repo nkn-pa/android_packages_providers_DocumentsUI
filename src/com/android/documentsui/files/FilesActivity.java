@@ -17,16 +17,12 @@
 package com.android.documentsui.files;
 
 import static com.android.documentsui.OperationDialogFragment.DIALOG_TYPE_UNKNOWN;
-import static com.android.documentsui.base.Shared.DEBUG;
 
-import android.app.Activity;
 import android.app.FragmentManager;
-import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.CallSuper;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.KeyboardShortcutGroup;
 import android.view.Menu;
@@ -45,14 +41,13 @@ import com.android.documentsui.ProviderExecutor;
 import com.android.documentsui.R;
 import com.android.documentsui.SharedInputHandler;
 import com.android.documentsui.base.DocumentInfo;
-import com.android.documentsui.base.DocumentStack;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.base.RootInfo;
-import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
 import com.android.documentsui.clipping.DocumentClipper;
 import com.android.documentsui.dirlist.AnimationView.AnimationType;
-import com.android.documentsui.prefs.ScopedPreferences;
 import com.android.documentsui.dirlist.DirectoryFragment;
+import com.android.documentsui.prefs.ScopedPreferences;
 import com.android.documentsui.selection.SelectionManager;
 import com.android.documentsui.services.FileOperationService;
 import com.android.documentsui.sidebar.RootsFragment;
@@ -60,7 +55,6 @@ import com.android.documentsui.ui.DialogController;
 import com.android.documentsui.ui.MessageBuilder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -85,6 +79,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
 
         MessageBuilder messages = new MessageBuilder(this);
         mInjector = new Injector<>(
+                Features.create(getResources()),
                 new Config(),
                 ScopedPreferences.create(this, PREFERENCES_SCOPE),
                 messages,
@@ -96,13 +91,14 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
         mInjector.selectionMgr = new SelectionManager(SelectionManager.MODE_MULTIPLE);
 
         mInjector.focusManager = new FocusManager(
+                mInjector.features,
                 mInjector.selectionMgr,
                 mDrawer,
                 this::focusSidebar,
                 getColor(R.color.accent_dark));
 
         mInjector.menuManager = new MenuManager(
-                this,
+                mInjector.prefs,
                 mSearchManager,
                 mState,
                 new DirectoryDetails(this) {
@@ -124,19 +120,19 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                 mState,
                 mRoots,
                 mDocs,
-                mInjector.focusManager,
-                mInjector.selectionMgr,
                 mSearchManager,
                 ProviderExecutor::forAuthority,
                 mInjector.actionModeController,
-                mInjector.dialogs,
-                mInjector.config,
                 clipper,
-                DocumentsApplication.getClipStore(this));
+                DocumentsApplication.getClipStore(this),
+                mInjector);
+
+        mInjector.searchManager = mSearchManager;
 
         mActivityInputHandler =
                 new ActivityInputHandler(mInjector.actions::deleteSelectedDocuments);
-        mSharedInputHandler = new SharedInputHandler(mInjector.focusManager, this::popDir);
+        mSharedInputHandler =
+                new SharedInputHandler(mInjector.focusManager, this::popDir, mInjector.features);
 
         RootsFragment.show(getFragmentManager(), null);
 
@@ -173,6 +169,10 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
     public void includeState(State state) {
         final Intent intent = getIntent();
 
+        // This is a remnant of old logic where we used to initialize accept MIME types in
+        // BaseActivity. RootsAccess still rely on this being correctly initialized so we still have
+        // to initialize it in FilesActivity.
+        state.initAcceptMimes(intent, "*/*");
         state.action = State.ACTION_BROWSE;
         state.allowMultiple = true;
 
@@ -247,10 +247,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                 mInjector.actions.openSettings(getCurrentRoot());
                 break;
             case R.id.menu_select_all:
-                dir = getDirectoryFragment();
-                if (dir != null) {
-                    dir.selectAllFiles();
-                }
+                mInjector.actions.selectAllFiles();
                 break;
             default:
                 return super.onOptionsItemSelected(item);
@@ -272,7 +269,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
 
         assert(!mSearchManager.isSearching());
 
-        if (cwd == null) {
+        if (mState.stack.isRecents()) {
             DirectoryFragment.showRecentsOpen(fm, anim);
         } else {
             // Normal boring directory
@@ -320,10 +317,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
         // But not working.
         switch (keyCode) {
             case KeyEvent.KEYCODE_A:
-                dir = getDirectoryFragment();
-                if (dir != null) {
-                    dir.selectAllFiles();
-                }
+                mInjector.actions.selectAllFiles();
                 return true;
             case KeyEvent.KEYCODE_X:
                 mInjector.actions.cutToClipboard();
@@ -340,30 +334,6 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
             default:
                 return super.onKeyShortcut(keyCode, event);
         }
-    }
-
-    @Override
-    public void onTaskFinished(Uri... uris) {
-        if (DEBUG) Log.d(TAG, "onFinished() " + Arrays.toString(uris));
-
-        final Intent intent = new Intent();
-        if (uris.length == 1) {
-            intent.setData(uris[0]);
-        } else if (uris.length > 1) {
-            final ClipData clipData = new ClipData(
-                    null, mState.acceptMimes, new ClipData.Item(uris[0]));
-            for (int i = 1; i < uris.length; i++) {
-                clipData.addItem(new ClipData.Item(uris[i]));
-            }
-            intent.setClipData(clipData);
-        }
-
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-
-        setResult(Activity.RESULT_OK, intent);
-        finish();
     }
 
     @Override

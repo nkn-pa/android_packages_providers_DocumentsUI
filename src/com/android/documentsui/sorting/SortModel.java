@@ -17,8 +17,6 @@
 package com.android.documentsui.sorting;
 
 import static com.android.documentsui.base.Shared.DEBUG;
-import static com.android.documentsui.base.Shared.ENABLE_OMC_API_FEATURES;
-import static com.android.documentsui.base.Shared.VERBOSE;
 
 import android.annotation.IntDef;
 import android.annotation.Nullable;
@@ -224,15 +222,6 @@ public class SortModel implements Parcelable {
     }
 
     public Cursor sortCursor(Cursor cursor) {
-        if (ENABLE_OMC_API_FEATURES
-                && cursor.getExtras().containsKey(ContentResolver.QUERY_ARG_SORT_COLUMNS)) {
-            if (VERBOSE) Log.i(TAG, "Cursor is pre-sorted by provider. Skipping sort. Booya!");
-
-            // TODO: assert that the contents of QUERY_ARG_SORT_COLUMNS
-            // matches the sort dimension...once we're returning any pre-sorted results.
-            return cursor;
-        }
-
         if (mSortedDimension != null) {
             return new SortingCursorWrapper(cursor, mSortedDimension);
         } else {
@@ -241,6 +230,7 @@ public class SortModel implements Parcelable {
     }
 
     public void addQuerySortArgs(Bundle queryArgs) {
+        // should only be called when R.bool.feature_content_paging is true
 
         final int id = getSortedDimensionId();
         switch (id) {
@@ -282,6 +272,50 @@ public class SortModel implements Parcelable {
                 throw new IllegalStateException(
                         "Unexpected sort direction: " + dimension.getSortDirection());
         }
+    }
+
+    public @Nullable String getDocumentSortQuery() {
+        // This method should only be called when R.bool.feature_content_paging is false.
+        // Once that feature is enabled by default, this method should be removed.
+        // The following assert exists simply to make reference to the resource id
+        // so the compiler will fail when the feature is removed...reminding you and me
+        // to remove this method :)
+        assert(R.bool.feature_content_paging != Integer.MIN_VALUE);
+
+        final int id = getSortedDimensionId();
+        final String columnName;
+        switch (id) {
+            case SORT_DIMENSION_ID_UNKNOWN:
+                return null;
+            case SortModel.SORT_DIMENSION_ID_TITLE:
+                columnName = Document.COLUMN_DISPLAY_NAME;
+                break;
+            case SortModel.SORT_DIMENSION_ID_DATE:
+                columnName = Document.COLUMN_LAST_MODIFIED;
+                break;
+            case SortModel.SORT_DIMENSION_ID_SIZE:
+                columnName = Document.COLUMN_SIZE;
+                break;
+            default:
+                throw new IllegalStateException(
+                        "Unexpected sort dimension id: " + id);
+        }
+
+        final SortDimension dimension = getDimensionById(id);
+        final String direction;
+        switch (dimension.getSortDirection()) {
+            case SortDimension.SORT_DIRECTION_ASCENDING:
+                direction = " ASC";
+                break;
+            case SortDimension.SORT_DIRECTION_DESCENDING:
+                direction = " DESC";
+                break;
+            default:
+                throw new IllegalStateException(
+                        "Unexpected sort direction: " + dimension.getSortDirection());
+        }
+
+        return columnName + direction;
     }
 
     private void notifyListeners(@UpdateType int updateType) {

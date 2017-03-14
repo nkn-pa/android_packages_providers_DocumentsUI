@@ -51,10 +51,12 @@ import com.android.documentsui.ActionHandler;
 import com.android.documentsui.BaseActivity;
 import com.android.documentsui.DocumentsApplication;
 import com.android.documentsui.DragAndDropHelper;
+import com.android.documentsui.DragShadowBuilder;
 import com.android.documentsui.Injector;
 import com.android.documentsui.Injector.Injected;
 import com.android.documentsui.ItemDragListener;
 import com.android.documentsui.R;
+import com.android.documentsui.TimeoutTask;
 import com.android.documentsui.base.BooleanConsumer;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
@@ -200,7 +202,7 @@ public class RootsFragment extends Fragment implements ItemDragListener.DragHost
 
                     assert (item.isDropTarget());
 
-                    return item.dropOn(event.getClipData());
+                    return item.dropOn(event);
                 }
             };
         }
@@ -378,11 +380,22 @@ public class RootsFragment extends Fragment implements ItemDragListener.DragHost
 
         final RootItem rootItem = (RootItem) item;
         getRootDocument(rootItem, (DocumentInfo doc) -> {
-            rootItem.docInfo = doc;
-            getBaseActivity().getShadowBuilder().setAppearDroppable(
-                    doc.isCreateSupported() && DragAndDropHelper.canCopyTo(localState, doc));
-            v.updateDragShadow(getBaseActivity().getShadowBuilder());
+            updateDropShadow(v, localState, rootItem, doc);
         });
+    }
+
+    private void updateDropShadow(
+            View v, Object localState, RootItem rootItem, DocumentInfo rootDoc) {
+        final DragShadowBuilder shadowBuilder = getBaseActivity().getShadowBuilder();
+        if (rootDoc == null) {
+            Log.e(TAG, "Root DocumentInfo is null. Defaulting to appear not droppable.");
+            shadowBuilder.setAppearDroppable(false);
+        } else {
+            rootItem.docInfo = rootDoc;
+            shadowBuilder.setAppearDroppable(rootDoc.isCreateSupported()
+                    && DragAndDropHelper.canCopyTo(localState, rootDoc));
+        }
+        v.updateDragShadow(shadowBuilder);
     }
 
     // In RootsFragment we always reset the drag shadow as it exits a RootItemView.
@@ -461,15 +474,12 @@ public class RootsFragment extends Fragment implements ItemDragListener.DragHost
     private void getRootDocument(RootItem rootItem, RootUpdater updater) {
         // We need to start a GetRootDocumentTask so we can know whether items can be directly
         // pasted into root
-        GetRootDocumentTask task = new GetRootDocumentTask(
+        mActionHandler.getRootDocument(
                 rootItem.root,
-                getBaseActivity(),
+                CONTEXT_MENU_ITEM_TIMEOUT,
                 (DocumentInfo doc) -> {
                     updater.updateDocInfoForRoot(doc);
                 });
-        task.setTimeout(CONTEXT_MENU_ITEM_TIMEOUT);
-        task.setForceCallback(true);
-        task.executeOnExecutor(getBaseActivity().getExecutorForCurrentDirectory());
     }
 
     static void ejectClicked(View ejectIcon, RootInfo root, ActionHandler actionHandler) {

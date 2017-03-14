@@ -33,9 +33,9 @@ import android.provider.DocumentsContract.Document;
 import android.text.format.DateUtils;
 import android.util.Log;
 
+import com.android.documentsui.base.Features;
 import com.android.documentsui.base.FilteringCursorWrapper;
 import com.android.documentsui.base.RootInfo;
-import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
 import com.android.documentsui.roots.RootCursorWrapper;
 import com.android.documentsui.roots.RootsAccess;
@@ -83,6 +83,7 @@ public class RecentsLoader extends AsyncTaskLoader<DirectoryResult> {
 
     private final RootsAccess mRoots;
     private final State mState;
+    private final Features mFeatures;
 
     @GuardedBy("mTasks")
     /** A authority -> RecentsTask map */
@@ -93,10 +94,11 @@ public class RecentsLoader extends AsyncTaskLoader<DirectoryResult> {
 
     private DirectoryResult mResult;
 
-    public RecentsLoader(Context context, RootsAccess roots, State state) {
+    public RecentsLoader(Context context, RootsAccess roots, State state, Features features) {
         super(context);
         mRoots = roots;
         mState = state;
+        mFeatures = features;
 
         // Keep clients around on high-RAM devices, since we'd be spinning them
         // up moments later to fetch thumbnails anyway.
@@ -329,11 +331,15 @@ public class RecentsLoader extends AsyncTaskLoader<DirectoryResult> {
                 for (int i = 0; i < rootIds.size(); i++) {
                     final Uri uri =
                             DocumentsContract.buildRecentDocumentsUri(authority, rootIds.get(i));
-                    final Bundle queryArgs = new Bundle();
-                    mState.sortModel.addQuerySortArgs(queryArgs);
-
                     try {
-                        res[i] = client.query(uri, null, queryArgs, null);
+                        if (mFeatures.isContentPagingEnabled()) {
+                            final Bundle queryArgs = new Bundle();
+                            mState.sortModel.addQuerySortArgs(queryArgs);
+                            res[i] = client.query(uri, null, queryArgs, null);
+                        } else {
+                            res[i] = client.query(
+                                    uri, null, null, null, mState.sortModel.getDocumentSortQuery());
+                        }
                         mCursors[i] = new RootCursorWrapper(authority, rootIds.get(i), res[i],
                                 MAX_DOCS_FROM_ROOT);
                     } catch (Exception e) {
