@@ -207,9 +207,6 @@ public class DirectoryFragment extends Fragment
         mProgressBar = view.findViewById(R.id.progressbar);
         assert(mProgressBar != null);
 
-        mRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.refresh_layout);
-        mRefreshLayout.setOnRefreshListener(this);
-
         mRecView = (RecyclerView) view.findViewById(R.id.dir_list);
         mRecView.setRecyclerListener(
                 new RecyclerListener() {
@@ -218,6 +215,9 @@ public class DirectoryFragment extends Fragment
                         cancelThumbnailTask(holder.itemView);
                     }
                 });
+
+        mRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.refresh_layout);
+        mRefreshLayout.setOnRefreshListener(this);
 
         Resources resources = getContext().getResources();
         new FastScroller(mRecView,
@@ -373,6 +373,7 @@ public class DirectoryFragment extends Fragment
                 this.getContext(),
                 mRecView,
                 mDragStartListener::onMouseDragEvent,
+                mRefreshLayout::setEnabled,
                 gestureSel,
                 mInputHandler,
                 mBandController,
@@ -692,15 +693,6 @@ public class DirectoryFragment extends Fragment
         }
     }
 
-    public final boolean onBackPressed() {
-        if (mSelectionMgr.hasSelection()) {
-            if (DEBUG) Log.d(TAG, "Clearing selection on selection manager.");
-            mSelectionMgr.clearSelection();
-            return true;
-        }
-        return false;
-    }
-
     private boolean onAccessibilityClick(View child) {
         DocumentDetails doc = getDocumentHolder(child);
         mActions.openDocument(doc);
@@ -973,9 +965,8 @@ public class DirectoryFragment extends Fragment
 
         DocumentInfo dst = getDestination(v);
         // If destination is already at top of stack, no need to pass it in
-        if (!mState.stack.isEmpty() && mState.stack.peek().equals(dst)) {
+        if (dst.equals(mState.stack.peek())) {
             mClipper.copyFromClipData(
-                    null,
                     mState.stack,
                     clipData,
                     mInjector.dialogs::showFileOperationStatus);

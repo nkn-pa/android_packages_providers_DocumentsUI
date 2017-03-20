@@ -112,6 +112,10 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
 
     @Override
     public boolean dropOn(DragEvent event, RootInfo root) {
+        if (!root.supportsCreate() || root.isLibrary()) {
+            return false;
+        }
+
         // DragEvent gets recycled, so it is possible that by the time the callback is called,
         // event.getLocalState() and event.getClipData() returns null. Thus, we want to save
         // references to ensure they are non null.
@@ -299,8 +303,13 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
                         selection,
                         mModel::getItemUri,
                         mClipStore);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to create uri supplier.", e);
+            } catch (Exception e) {
+                Log.e(TAG,"Failed to delete a file because we were unable to get item URIs.", e);
+                mDialogs.showFileOperationStatus(
+                        FileOperations.Callback.STATUS_FAILED,
+                        FileOperationService.OPERATION_DELETE,
+                        selection.size());
+                return;
             }
 
             FileOperation operation = new FileOperation.Builder()
@@ -501,7 +510,7 @@ public class ActionHandler<T extends Activity & Addons> extends AbstractActionHa
         }
 
         if (doc.isInArchive()) {
-            Log.w(TAG, "Can't view archived files.");
+            mDialogs.showViewInArchivesUnsupported();
             return false;
         }
 

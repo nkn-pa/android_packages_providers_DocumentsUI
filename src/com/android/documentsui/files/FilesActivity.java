@@ -18,8 +18,10 @@ package com.android.documentsui.files;
 
 import static com.android.documentsui.OperationDialogFragment.DIALOG_TYPE_UNKNOWN;
 
+import android.app.ActivityManager.TaskDescription;
 import android.app.FragmentManager;
 import android.content.Intent;
+import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.CallSuper;
@@ -98,7 +100,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                 getColor(R.color.accent_dark));
 
         mInjector.menuManager = new MenuManager(
-                mInjector.prefs,
+                mInjector.features,
                 mSearchManager,
                 mState,
                 new DirectoryDetails(this) {
@@ -132,14 +134,54 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
         mActivityInputHandler =
                 new ActivityInputHandler(mInjector.actions::deleteSelectedDocuments);
         mSharedInputHandler =
-                new SharedInputHandler(mInjector.focusManager, this::popDir, mInjector.features);
+                new SharedInputHandler(
+                        mInjector.focusManager,
+                        mInjector.selectionMgr,
+                        mInjector.searchManager::cancelSearch,
+                        this::popDir,
+                        mInjector.features);
 
         RootsFragment.show(getFragmentManager(), null);
 
         final Intent intent = getIntent();
 
         mInjector.actions.initLocation(intent);
+
+        // Allow the activity to masquerade as another, so we can look both like
+        // Downloads and Files, but with only a single underlying activity.
+        if (intent.hasExtra(LauncherActivity.TASK_LABEL_RES)
+                && intent.hasExtra(LauncherActivity.TASK_ICON_RES)) {
+            updateTaskDescription(intent);
+        }
+
         presentFileErrors(icicle, intent);
+    }
+
+    // This is called in the intent contains label and icon resources.
+    // When that is true, the launcher activity has supplied them so we
+    // can adapt our presentation to how we were launched.
+    // Without this code, overlaying launcher_icon and launcher_label
+    // resources won't create a complete illusion of the activity being renamed.
+    // E.g. if we re-brand Files to Downloads by overlaying label and icon
+    // when the user tapped recents they'd see not "Downloads", but the
+    // underlying Activity description...Files.
+    // Alternate if we rename this activity, when launching other ways
+    // like when browsing files on a removable disk, the app would be
+    // called Downloads, which is also not the desired behavior.
+    private void updateTaskDescription(final Intent intent) {
+        int labelRes = intent.getIntExtra(LauncherActivity.TASK_LABEL_RES, -1);
+        assert(labelRes > -1);
+        String label = getResources().getString(labelRes);
+
+        int iconRes = intent.getIntExtra(LauncherActivity.TASK_ICON_RES, -1);
+        assert(iconRes > -1);
+
+        BitmapDrawable drawable = (BitmapDrawable) getResources().getDrawable(
+                iconRes,
+                null  // we don't care about theme, since the supplier should have handled that.
+                );
+
+        setTaskDescription(new TaskDescription(label, drawable.getBitmap()));
     }
 
     private void presentFileErrors(Bundle icicle, final Intent intent) {
@@ -286,6 +328,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
      * @deprecated use {@link ActionHandler#onDocumentPicked(DocumentInfo)}
      * @param doc
      */
+    @Deprecated
     @Override
     public void onDocumentPicked(DocumentInfo doc) {
         mInjector.actions.onDocumentPicked(doc);
@@ -301,7 +344,9 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         return mActivityInputHandler.onKeyDown(keyCode, event)
-                || mSharedInputHandler.onKeyDown(keyCode, event)
+                || mSharedInputHandler.onKeyDown(
+                        keyCode,
+                        event)
                 || super.onKeyDown(keyCode, event);
     }
 

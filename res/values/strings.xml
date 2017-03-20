@@ -149,6 +149,8 @@
 
     <!-- Toast shown when no app can be found to open the selected document [CHAR LIMIT=48] -->
     <string name="toast_no_application">Can\u2019t open file</string>
+    <!-- Toast notifying that it's impossible to open files inside archives [CHAR LIMIT=48] -->
+    <string name="toast_view_in_archives_unsupported">Cannot open files in archives</string>
     <!-- Toast shown when some of the selected documents failed to be deleted [CHAR LIMIT=48] -->
     <string name="toast_failed_delete">Unable to delete some documents</string>
 
@@ -267,7 +269,9 @@
         <item quantity="other">Copied <xliff:g id="count" example="3">%1$d</xliff:g> items to clipboard.</item>
     </plurals>
     <!-- Toast shown when the file operation is not supported [CHAR LIMIT=48] -->
-    <string name="file_operation_error">File operation is not supported.</string>
+    <string name="file_operation_rejected">File operation is not supported.</string>
+    <!-- Toast shown when the file operation is not supported [CHAR LIMIT=48] -->
+    <string name="file_operation_error">File operation failed.</string>
     <!-- Toast shown when renaming document failed with an error [CHAR LIMIT=48] -->
     <string name="rename_error">Failed to rename document</string>
     <!-- Context Menu item that ejects the root selected [CHAR LIMIT=24] -->
@@ -342,4 +346,7 @@
 
     <!-- File name of an archive file created when compressing files, without the file extension (.zip). -->
     <string name="new_archive_file_name">archive<xliff:g id="extension" example=".zip">%s</xliff:g></string>
+
+    <!-- Dialog text shown when confirming if they want to overwrite a file -->
+    <string name="overwrite_file_confirmation_message">Overwrite <xliff:g id="name" example="foobar.txt">%1$s</xliff:g>?</string>
 </resources>

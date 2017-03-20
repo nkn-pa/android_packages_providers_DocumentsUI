@@ -16,6 +16,9 @@
 
 package com.android.documentsui.testing;
 
+import static junit.framework.Assert.assertNull;
+import static junit.framework.Assert.assertSame;
+
 import android.content.ClipData;
 import android.net.Uri;
 
@@ -29,6 +32,8 @@ import com.android.documentsui.services.FileOperations.Callback;
 import java.util.function.Function;
 
 public class TestDocumentClipper implements DocumentClipper {
+
+    private ClipData mLastClipData;
 
     @Override
     public boolean hasItemsToPaste() {
@@ -63,6 +68,7 @@ public class TestDocumentClipper implements DocumentClipper {
     @Override
     public void copyFromClipData(RootInfo root, DocumentInfo destination, ClipData clipData,
             Callback callback) {
+        mLastClipData = clipData;
     }
 
     @Override
@@ -71,9 +77,19 @@ public class TestDocumentClipper implements DocumentClipper {
     }
 
     @Override
+    public void copyFromClipData(DocumentStack docStack, ClipData clipData, Callback callback) {
+    }
+
+    @Override
     public int getOpType(ClipData data) {
         return 0;
     }
 
+    public void assertNoClipData() {
+        assertNull(mLastClipData);
+    }
 
+    public void assertSameClipData(ClipData expect) {
+        assertSame(expect, mLastClipData);
+    }
 }

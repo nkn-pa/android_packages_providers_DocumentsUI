@@ -72,8 +72,8 @@ public class ActionHandlerTest {
     private TestDialogController mDialogs;
     private TestConfirmationCallback mCallback;
     private ActionHandler<TestActivity> mHandler;
+    private TestDocumentClipper mClipper;
     private boolean refreshAnswer = false;
-    private ClipData mClipDataFromCallback;
 
     @Before
     public void setUp() {
@@ -84,14 +84,13 @@ public class ActionHandlerTest {
         mCallback = new TestConfirmationCallback();
         mEnv.roots.configurePm(mActivity.packageMgr);
         mEnv.injector.dialogs = mDialogs;
+        mClipper = new TestDocumentClipper();
 
         mHandler = createHandler();
 
         mDialogs.confirmNext();
 
         mEnv.selectDocument(TestEnv.FILE_GIF);
-
-        mClipDataFromCallback = null;
     }
 
     @Test
@@ -263,6 +262,23 @@ public class ActionHandlerTest {
     }
 
     @Test
+    public void testDocumentPicked_InArchive_QuickViewable() throws Exception {
+        mActivity.resources.setQuickViewerPackage("corptropolis.viewer");
+        mActivity.currentRoot = TestRootsAccess.HOME;
+
+        mHandler.onDocumentPicked(TestEnv.FILE_IN_ARCHIVE);
+        mActivity.assertActivityStarted(Intent.ACTION_QUICK_VIEW);
+    }
+
+    @Test
+    public void testDocumentPicked_InArchive_Unopenable() throws Exception {
+        mActivity.currentRoot = TestRootsAccess.HOME;
+
+        mHandler.onDocumentPicked(TestEnv.FILE_IN_ARCHIVE);
+        mDialogs.assertViewInArchivesShownUnsupported();
+    }
+
+    @Test
     public void testDocumentPicked_PreviewsWhenResourceSet() throws Exception {
         mActivity.resources.setQuickViewerPackage("corptropolis.viewer");
         mActivity.currentRoot = TestRootsAccess.HOME;
@@ -363,6 +379,21 @@ public class ActionHandlerTest {
     }
 
     @Test
+    public void testDragAndDrop_OnReadOnlyRoot() throws Exception {
+        RootInfo root = new RootInfo(); // root by default has no SUPPORT_CREATE flag
+        DragEvent event = DragEvent.obtain(DragEvent.ACTION_DROP, 1, 1, null, null, null,
+                null, true);
+        assertFalse(mHandler.dropOn(event, root));
+    }
+
+    @Test
+    public void testDragAndDrop_OnLibraryRoot() throws Exception {
+        DragEvent event = DragEvent.obtain(DragEvent.ACTION_DROP, 1, 1, null, null, null,
+                null, true);
+        assertFalse(mHandler.dropOn(event, TestRootsAccess.RECENTS));
+    }
+
+    @Test
     public void testClipper_suppliedCorrectClipData() throws Exception {
         // DragEvent gets recycled in Android, so it is possible that by the time the callback is
         // called, event.getLocalState() and event.getClipData() returns null. This tests to ensure
@@ -375,16 +406,7 @@ public class ActionHandlerTest {
                 mEnv.searchViewManager,
                 mEnv::lookupExecutor,
                 mActionModeAddons,
-                new TestDocumentClipper() {
-                    @Override
-                    public void copyFromClipData(
-                            RootInfo root,
-                            DocumentInfo destination,
-                            ClipData clipData,
-                            Callback callback) {
-                        mClipDataFromCallback = clipData;
-                    }
-                },
+                mClipper,
                 null,
                 mEnv.injector
         );
@@ -400,7 +422,7 @@ public class ActionHandlerTest {
 
         mEnv.beforeAsserts();
 
-        assertSame(clipData, mClipDataFromCallback);
+        mClipper.assertSameClipData(clipData);
     }
 
     @Test
@@ -413,16 +435,7 @@ public class ActionHandlerTest {
                 mEnv.searchViewManager,
                 mEnv::lookupExecutor,
                 mActionModeAddons,
-                new TestDocumentClipper() {
-                    @Override
-                    public void copyFromClipData(
-                            RootInfo root,
-                            DocumentInfo destination,
-                            ClipData clipData,
-                            Callback callback) {
-                        mClipDataFromCallback = clipData;
-                    }
-                },
+                mClipper,
                 null,
                 mEnv.injector
         );
@@ -436,7 +449,7 @@ public class ActionHandlerTest {
 
         mEnv.beforeAsserts();
 
-        assertNull(mClipDataFromCallback);
+        mClipper.assertNoClipData();
     }
 
     @Test
