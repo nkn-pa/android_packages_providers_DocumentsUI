@@ -41,7 +41,7 @@ import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.State;
 import com.android.documentsui.base.State.ActionType;
 import com.android.documentsui.files.LauncherActivity;
-import com.android.documentsui.roots.RootsAccess;
+import com.android.documentsui.roots.ProvidersAccess;
 import com.android.documentsui.services.FileOperationService;
 import com.android.documentsui.services.FileOperationService.OpType;
 import com.android.internal.logging.MetricsLogger;
@@ -71,7 +71,7 @@ public final class Metrics {
     private static final String COUNT_FILEOP_EXTERNAL = "docsui_fileop_external";
     private static final String COUNT_FILEOP_CANCELED = "docsui_fileop_canceled";
     private static final String COUNT_STARTUP_MS = "docsui_startup_ms";
-    private static final String COUNT_DRAWER_OPENED = "docsui_drawer_opened";
+    @Deprecated private static final String COUNT_DRAWER_OPENED = "docsui_drawer_opened";
     private static final String COUNT_USER_ACTION = "docsui_menu_action";
     private static final String COUNT_BROWSE_AT_LOCATION = "docsui_browse_at_location";
     private static final String COUNT_CREATE_AT_LOCATION = "docsui_create_at_location";
@@ -322,6 +322,7 @@ public final class Metrics {
     public static final int USER_ACTION_DRAG_N_DROP = 24;
     public static final int USER_ACTION_DRAG_N_DROP_MULTI_WINDOW = 25;
     public static final int USER_ACTION_CUT_CLIPBOARD = 26;
+    public static final int USER_ACTION_VIEW_IN_APPLICATION = 27;
 
     @IntDef(flag = false, value = {
             USER_ACTION_OTHER,
@@ -351,7 +352,8 @@ public final class Metrics {
             USER_ACTION_COPY_CLIPBOARD,
             USER_ACTION_DRAG_N_DROP,
             USER_ACTION_DRAG_N_DROP_MULTI_WINDOW,
-            USER_ACTION_CUT_CLIPBOARD
+            USER_ACTION_CUT_CLIPBOARD,
+            USER_ACTION_VIEW_IN_APPLICATION
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface UserAction {}
@@ -484,20 +486,6 @@ public final class Metrics {
      */
     public static void logAppVisited(Context context, ResolveInfo info) {
         logHistogram(context, COUNT_ROOT_VISITED_IN_PICKER, sanitizeRoot(info));
-    }
-
-    /**
-     * Logs a drawer opened event. Call this when the user opens drawer by swipe or by clicking the
-     * hamburger icon.
-     * @param context
-     * @param trigger type of action that opened the drawer
-     */
-    public static void logDrawerOpened(Context context, @DrawerController.Trigger int trigger) {
-        if (trigger == DrawerController.OPENED_HAMBURGER) {
-            logHistogram(context, COUNT_DRAWER_OPENED, DRAWER_OPENED_HAMBURGER);
-        } else if (trigger == DrawerController.OPENED_SWIPE) {
-            logHistogram(context, COUNT_DRAWER_OPENED, DRAWER_OPENED_SWIPE);
-        }
     }
 
     /**
@@ -795,8 +783,8 @@ public final class Metrics {
                 context.getContentResolver(), Providers.AUTHORITY_STORAGE)) {
             final Path path = DocumentsContract.findDocumentPath(client, docUri);
 
-            final RootsAccess roots = DocumentsApplication.getRootsCache(context);
-            final RootInfo root = roots.getRootOneshot(
+            final ProvidersAccess providers = DocumentsApplication.getProvidersCache(context);
+            final RootInfo root = providers.getRootOneshot(
                     Providers.AUTHORITY_STORAGE, path.getRootId());
             isInternal = !root.supportsEject();
         } catch (RemoteException | RuntimeException e) {

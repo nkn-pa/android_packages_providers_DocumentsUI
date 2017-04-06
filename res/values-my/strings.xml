@@ -41,6 +41,8 @@
     <string name="menu_compress" msgid="37539111904724188">"ချုံ့ရန်"</string>
     <string name="menu_extract" msgid="8171946945982532262">"ရွှေးချယ်ထည့်သွင်းရန်…"</string>
     <string name="menu_rename" msgid="1883113442688817554">"အမည်ပြောင်းပါ"</string>
+    <!-- no translation found for menu_view_in_owner (7228948660557554770) -->
+    <skip />
     <string name="menu_new_window" msgid="2947837751796109126">"ဝင်းဒိုးသစ်"</string>
     <string name="menu_cut_to_clipboard" msgid="2878752142015026229">"ဖြတ်ယူပါ"</string>
     <string name="menu_copy_to_clipboard" msgid="5064081159073330776">"မိတ္တူကူးပါ"</string>
@@ -76,8 +78,7 @@
     <string name="empty" msgid="5300254272613103004">"ဘာမှ မရှိပါ"</string>
     <string name="no_results" msgid="2371026325236359209">"%1$s တွင် ကိုက်ညီသည့်အရာ မရှိပါ"</string>
     <string name="toast_no_application" msgid="7555319548595113121">"ဖိုင်ကို ဖွင့်၍မရပါ"</string>
-    <!-- no translation found for toast_view_in_archives_unsupported (1923221390170964845) -->
-    <skip />
+    <string name="toast_view_in_archives_unsupported" msgid="1923221390170964845">"မှတ်တမ်းဟောင်းထဲမှ ဖိုင်များကို ဖွင့်၍မရပါ"</string>
     <string name="toast_failed_delete" msgid="3453846588205817591">"အချို့စာဖိုင်များကို ဖျက်၍မရပါ"</string>
     <string name="share_via" msgid="8725082736005677161">"အောက်ပါနည်းလမ်းဖြင့် မျှဝေပါ"</string>
     <string name="copy_notification_title" msgid="52256435625098456">"ဖိုင်များကူးယူနေသည်"</string>
@@ -161,10 +162,8 @@
       <item quantity="other">ဖိုင် <xliff:g id="COUNT_1">%1$d</xliff:g> ဖိုင်ကို ကလစ်ဘုတ်သို့ ကူးယူထားသည်။</item>
       <item quantity="one">ဖိုင် <xliff:g id="COUNT_0">%1$d</xliff:g> ဖိုင်ကို ကလစ်ဘုတ်သို့ ကူးယူထားသည်။</item>
     </plurals>
-    <!-- no translation found for file_operation_rejected (4301554203329008794) -->
-    <skip />
-    <!-- no translation found for file_operation_error (2234357335716533795) -->
-    <skip />
+    <string name="file_operation_rejected" msgid="4301554203329008794">"ဖိုင်ပြင်ဆင် ဆောင်ရွက်ခြင်းကို ပံ့ပိုးမထားပါ။"</string>
+    <string name="file_operation_error" msgid="2234357335716533795">"ဖိုင်ပြင်ဆင် ဆောင်ရွက်ခြင်း မအောင်မြင်ပါ။"</string>
     <string name="rename_error" msgid="6700093173508118635">"စာဖိုင်ကို အမည်ပြောင်းခြင်း မအောင်မြင်ပါ"</string>
     <string name="menu_eject_root" msgid="9215040039374893613">"ထုတ်ပါ"</string>
     <string name="notification_copy_files_converted_title" msgid="6916768494891833365">"အချို့ဖိုင်များကို ပြောင်းလဲထားသည်"</string>
@@ -202,6 +201,5 @@
     <string name="authentication_required" msgid="147352435273287559">"ဤဖိုင်လမ်းညွှန်ပါ အကြောင်းအရာကို ကြည့်ရန်အတွက် အထောက်အထားစိစစ်ရန် လိုအပ်ပါသည်"</string>
     <string name="open_app" msgid="8467890061226696744">"<xliff:g id="NAME">%1$s</xliff:g> ကို ဖွင့်ရန်"</string>
     <string name="new_archive_file_name" msgid="1604650338077249838">"မှတ်တမ်းဟောင်း<xliff:g id="EXTENSION">%s</xliff:g>"</string>
-    <!-- no translation found for overwrite_file_confirmation_message (2496109652768222716) -->
-    <skip />
+    <string name="overwrite_file_confirmation_message" msgid="2496109652768222716">"<xliff:g id="NAME">%1$s</xliff:g> ကို အစားထိုးလိုပါသလား။"</string>
 </resources>

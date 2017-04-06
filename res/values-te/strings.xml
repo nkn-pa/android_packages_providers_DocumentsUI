@@ -41,6 +41,8 @@
     <string name="menu_compress" msgid="37539111904724188">"కుదించు"</string>
     <string name="menu_extract" msgid="8171946945982532262">"దీనిలోకి సంగ్రహించు…"</string>
     <string name="menu_rename" msgid="1883113442688817554">"పేరు మార్చు"</string>
+    <!-- no translation found for menu_view_in_owner (7228948660557554770) -->
+    <skip />
     <string name="menu_new_window" msgid="2947837751796109126">"కొత్త విండో"</string>
     <string name="menu_cut_to_clipboard" msgid="2878752142015026229">"కత్తిరించు"</string>
     <string name="menu_copy_to_clipboard" msgid="5064081159073330776">"కాపీ చేయి"</string>
@@ -76,8 +78,7 @@
     <string name="empty" msgid="5300254272613103004">"అంశాలు లేవు"</string>
     <string name="no_results" msgid="2371026325236359209">"%1$sలో సరిపోలినవి లేవు"</string>
     <string name="toast_no_application" msgid="7555319548595113121">"ఫైల్‌ను తెరవడం సాధ్యపడదు"</string>
-    <!-- no translation found for toast_view_in_archives_unsupported (1923221390170964845) -->
-    <skip />
+    <string name="toast_view_in_archives_unsupported" msgid="1923221390170964845">"ఆర్కైవ్‌లలో ఉన్న ఫైల్‌లను తెరవడం సాధ్యం కాదు"</string>
     <string name="toast_failed_delete" msgid="3453846588205817591">"కొన్ని పత్రాలను తొలగించడం సాధ్యపడలేదు"</string>
     <string name="share_via" msgid="8725082736005677161">"దీనితో భాగస్వామ్యం చేయండి"</string>
     <string name="copy_notification_title" msgid="52256435625098456">"ఫైల్‌లు కాపీ అవుతున్నాయి"</string>
@@ -161,10 +162,8 @@
       <item quantity="other">క్లిప్‌బోర్డ్‌కు <xliff:g id="COUNT_1">%1$d</xliff:g> అంశాలు కాపీ చేయబడ్డాయి.</item>
       <item quantity="one">క్లిప్‌బోర్డ్‌కు <xliff:g id="COUNT_0">%1$d</xliff:g> అంశం కాపీ చేయబడింది.</item>
     </plurals>
-    <!-- no translation found for file_operation_rejected (4301554203329008794) -->
-    <skip />
-    <!-- no translation found for file_operation_error (2234357335716533795) -->
-    <skip />
+    <string name="file_operation_rejected" msgid="4301554203329008794">"ఫైల్ చర్యకు మద్దతు లేదు."</string>
+    <string name="file_operation_error" msgid="2234357335716533795">"ఫైల్ చర్య విఫలమైంది."</string>
     <string name="rename_error" msgid="6700093173508118635">"పత్రం పేరు మార్చడంలో విఫలమైంది"</string>
     <string name="menu_eject_root" msgid="9215040039374893613">"తీసివేయి"</string>
     <string name="notification_copy_files_converted_title" msgid="6916768494891833365">"కొన్ని పైల్‌లు మార్చబడ్డాయి"</string>
@@ -202,6 +201,5 @@
     <string name="authentication_required" msgid="147352435273287559">"ఈ డైరెక్టరీలో ఉన్న కంటెంట్‌ను చూడటానికి ప్రమాణీకరణ అవసరం"</string>
     <string name="open_app" msgid="8467890061226696744">"<xliff:g id="NAME">%1$s</xliff:g>ని తెరువు"</string>
     <string name="new_archive_file_name" msgid="1604650338077249838">"ఆర్కైవ్ చేయి<xliff:g id="EXTENSION">%s</xliff:g>"</string>
-    <!-- no translation found for overwrite_file_confirmation_message (2496109652768222716) -->
-    <skip />
+    <string name="overwrite_file_confirmation_message" msgid="2496109652768222716">"<xliff:g id="NAME">%1$s</xliff:g>ని భర్తీ చేయాలా?"</string>
 </resources>
