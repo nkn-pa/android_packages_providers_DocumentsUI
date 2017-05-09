@@ -28,7 +28,6 @@ import static com.android.documentsui.base.Shared.DEBUG;
 import static com.android.documentsui.services.FileOperationService.EXTRA_DIALOG_TYPE;
 import static com.android.documentsui.services.FileOperationService.EXTRA_OPERATION_TYPE;
 import static com.android.documentsui.services.FileOperationService.EXTRA_FAILED_DOCS;
-import static com.android.documentsui.services.FileOperationService.EXTRA_SRC_LIST;
 import static com.android.documentsui.services.FileOperationService.OPERATION_COPY;
 
 import android.annotation.StringRes;
@@ -61,6 +60,7 @@ import com.android.documentsui.Metrics;
 import com.android.documentsui.R;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.clipping.UrisSupplier;
 import com.android.documentsui.roots.ProvidersCache;
@@ -98,13 +98,13 @@ class CopyJob extends ResolvedResourcesJob {
      * @see @link {@link Job} constructor for most param descriptions.
      */
     CopyJob(Context service, Listener listener, String id, DocumentStack destination,
-            UrisSupplier srcs) {
-        this(service, listener, id, OPERATION_COPY, destination, srcs);
+            UrisSupplier srcs, Features features) {
+        this(service, listener, id, OPERATION_COPY, destination, srcs, features);
     }
 
     CopyJob(Context service, Listener listener, String id, @OpType int opType,
-            DocumentStack destination, UrisSupplier srcs) {
-        super(service, listener, id, opType, destination, srcs);
+            DocumentStack destination, UrisSupplier srcs, Features features) {
+        super(service, listener, id, opType, destination, srcs, features);
         mDstInfo = destination.peek();
 
         assert(srcs.getItemCount() > 0);
@@ -202,7 +202,7 @@ class CopyJob extends ResolvedResourcesJob {
 
         // TODO: Consider adding a dialog on tapping the notification with a list of
         // converted files.
-        final Notification.Builder warningBuilder = new Notification.Builder(service)
+        final Notification.Builder warningBuilder = createNotificationBuilder()
                 .setContentTitle(service.getResources().getString(
                         R.string.notification_copy_files_converted_title))
                 .setContentText(service.getString(
@@ -348,6 +348,8 @@ class CopyJob extends ResolvedResourcesJob {
                 try {
                     if (DocumentsContract.copyDocument(getClient(src), src.derivedUri,
                             dstDirInfo.derivedUri) != null) {
+                        Metrics.logFileOperated(
+                                appContext, operationType, Metrics.OPMODE_PROVIDER);
                         return;
                     }
                 } catch (RemoteException | RuntimeException e) {
@@ -540,6 +542,9 @@ class CopyJob extends ResolvedResourcesJob {
                     throw new ResourceException("Failed to open a file input stream for %s due "
                             + "an exception.", src.derivedUri, e);
                 }
+
+                Metrics.logFileOperated(
+                        appContext, operationType, Metrics.OPMODE_CONVERTED);
             } else {
                 try {
                     srcFile = getClient(src).openFile(src.derivedUri, "r", canceller);
@@ -550,6 +555,9 @@ class CopyJob extends ResolvedResourcesJob {
                             "Failed to open a file for %s due to an exception.", src.derivedUri, e);
                 }
                 in = new ParcelFileDescriptor.AutoCloseInputStream(srcFile);
+
+                Metrics.logFileOperated(
+                        appContext, operationType, Metrics.OPMODE_CONVENTIONAL);
             }
 
             try {
