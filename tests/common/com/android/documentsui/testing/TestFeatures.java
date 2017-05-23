@@ -15,6 +15,8 @@
  */
 package com.android.documentsui.testing;
 
+import android.annotation.BoolRes;
+
 import com.android.documentsui.base.Features;
 
 public class TestFeatures implements Features {
@@ -23,9 +25,11 @@ public class TestFeatures implements Features {
     public boolean commandProcessor = true;
     public boolean contentPaging = true;
     public boolean contentRefresh = true;
+    public boolean debugSupport = true;
     public boolean foldersInSearchResults = true;
     public boolean gestureScale = true;
     public boolean launchToDocument = true;
+    public boolean notificationChannel = true;
     public boolean remoteActions = true;
     public boolean systemKeyboardNavigation = true;
     public boolean virtualFilesSharing = true;
@@ -51,6 +55,11 @@ public class TestFeatures implements Features {
     }
 
     @Override
+    public boolean isDebugSupportEnabled() {
+        return debugSupport;
+    }
+
+    @Override
     public boolean isFoldersInSearchResultsEnabled() {
         return foldersInSearchResults;
     }
@@ -66,6 +75,11 @@ public class TestFeatures implements Features {
     }
 
     @Override
+    public boolean isNotificationChannelEnabled() {
+        return notificationChannel;
+    }
+
+    @Override
     public boolean isRemoteActionsEnabled() {
         return remoteActions;
     }
@@ -78,5 +92,10 @@ public class TestFeatures implements Features {
     @Override
     public boolean isVirtualFilesSharingEnabled() {
         return virtualFilesSharing;
+    }
+
+    @Override
+    public void forceFeature(@BoolRes int feature, boolean enabled) {
+        throw new UnsupportedOperationException("Implement as needed.");
     }
 }

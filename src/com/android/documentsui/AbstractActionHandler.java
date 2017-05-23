@@ -22,8 +22,10 @@ import static com.android.documentsui.base.Shared.DEBUG;
 
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.Loader;
 import android.content.pm.ResolveInfo;
 import android.database.Cursor;
@@ -42,6 +44,7 @@ import com.android.documentsui.LoadDocStackTask.LoadDocStackCallback;
 import com.android.documentsui.base.BooleanConsumer;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.base.Lookup;
 import com.android.documentsui.base.Providers;
 import com.android.documentsui.base.RootInfo;
@@ -76,6 +79,10 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
         implements ActionHandler {
 
     @VisibleForTesting
+    public static final int CODE_FORWARD = 42;
+    public static final int CODE_AUTHENTICATION = 43;
+
+    @VisibleForTesting
     static final int LOADER_ID = 42;
 
     private static final String TAG = "AbstractActionHandler";
@@ -89,7 +96,7 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
     protected final SelectionManager mSelectionMgr;
     protected final SearchViewManager mSearchMgr;
     protected final Lookup<String, Executor> mExecutors;
-    protected final Injector mInjector;
+    protected final Injector<?> mInjector;
 
     private final LoaderBindings mBindings;
 
@@ -115,7 +122,7 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
             DocumentsAccess docs,
             SearchViewManager searchMgr,
             Lookup<String, Executor> executors,
-            Injector injector) {
+            Injector<?> injector) {
 
         assert(activity != null);
         assert(state != null);
@@ -144,6 +151,32 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
                 root.authority,
                 root.rootId,
                 listener).executeOnExecutor(ProviderExecutor.forAuthority(root.authority));
+    }
+
+    @Override
+    public void startAuthentication(PendingIntent intent) {
+        try {
+            mActivity.startIntentSenderForResult(intent.getIntentSender(), CODE_AUTHENTICATION,
+                    null, 0, 0, 0);
+        } catch (IntentSender.SendIntentException cancelled) {
+            Log.d(TAG, "Authentication Pending Intent either canceled or ignored.");
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        switch (requestCode) {
+            case CODE_AUTHENTICATION:
+                onAuthenticationResult(resultCode);
+                break;
+        }
+    }
+
+    private void onAuthenticationResult(int resultCode) {
+        if (resultCode == Activity.RESULT_OK) {
+            Log.v(TAG, "Authentication was successful. Refreshing directory now.");
+            mActivity.refreshCurrentRootAndDirectory(AnimationView.ANIM_NONE);
+        }
     }
 
     @Override
@@ -355,7 +388,12 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
 
     @Override
     public void setDebugMode(boolean enabled) {
+        if (!mInjector.features.isDebugSupportEnabled()) {
+            return;
+        }
+
         mState.debugMode = enabled;
+        mInjector.features.forceFeature(R.bool.feature_command_interceptor, enabled);
         mActivity.invalidateOptionsMenu();
 
         if (enabled) {
@@ -370,6 +408,8 @@ public abstract class AbstractActionHandler<T extends Activity & CommonAddons>
 
     @Override
     public void showDebugMessage() {
+        assert (mInjector.features.isDebugSupportEnabled());
+
         int[] colors = mInjector.debugHelper.getNextColors();
         Pair<String, Integer> messagePair = mInjector.debugHelper.getNextMessage();
 
