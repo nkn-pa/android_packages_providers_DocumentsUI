@@ -44,7 +44,6 @@ import android.widget.Toolbar;
 import com.android.documentsui.AbstractActionHandler.CommonAddons;
 import com.android.documentsui.Injector.Injected;
 import com.android.documentsui.NavigationViewManager.Breadcrumb;
-import com.android.documentsui.archives.ArchivesProvider;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
@@ -65,7 +64,6 @@ import com.android.documentsui.sidebar.RootsFragment;
 import com.android.documentsui.sorting.SortController;
 import com.android.documentsui.sorting.SortModel;
 
-import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -217,7 +215,8 @@ public abstract class BaseActivity
                 mProviders,
                 mDocs,
                 mState,
-                mSearchManager);
+                mSearchManager,
+                mInjector.actionModeController::finishActionMode);
         mRootsMonitor.start();
     }
 
@@ -245,6 +244,7 @@ public abstract class BaseActivity
     protected void onDestroy() {
         mRootsMonitor.stop();
         mPreferencesMonitor.stop();
+        mSortController.destroy();
         super.onDestroy();
     }
 
@@ -581,6 +581,11 @@ public abstract class BaseActivity
             mInjector.debugHelper.debugCheck(event.getDownTime(), event.getKeyCode());
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        mInjector.actions.onActivityResult(requestCode, resultCode, data);
     }
 
     /**

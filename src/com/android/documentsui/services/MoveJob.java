@@ -33,6 +33,7 @@ import com.android.documentsui.Metrics;
 import com.android.documentsui.R;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.DocumentStack;
+import com.android.documentsui.base.Features;
 import com.android.documentsui.clipping.UrisSupplier;
 
 import java.io.FileNotFoundException;
@@ -56,9 +57,9 @@ final class MoveJob extends CopyJob {
      *
      * @see @link {@link Job} constructor for most param descriptions.
      */
-    MoveJob(Context service, Listener listener,
-            String id, DocumentStack destination, UrisSupplier srcs, @Nullable Uri srcParent) {
-        super(service, listener, id, OPERATION_MOVE, destination, srcs);
+    MoveJob(Context service, Listener listener, String id, DocumentStack destination,
+            UrisSupplier srcs, @Nullable Uri srcParent, Features features) {
+        super(service, listener, id, OPERATION_MOVE, destination, srcs, features);
         mSrcParentUri = srcParent;
     }
 
@@ -147,6 +148,8 @@ final class MoveJob extends CopyJob {
                     if (DocumentsContract.moveDocument(getClient(src), src.derivedUri,
                             srcParent != null ? srcParent.derivedUri : mSrcParent.derivedUri,
                             dest.derivedUri) != null) {
+                        Metrics.logFileOperated(
+                                appContext, operationType, Metrics.OPMODE_PROVIDER);
                         return;
                     }
                 } catch (RemoteException | RuntimeException e) {
