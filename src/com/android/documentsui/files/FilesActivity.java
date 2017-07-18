@@ -33,7 +33,6 @@ import android.view.MenuItem;
 import com.android.documentsui.ActionModeController;
 import com.android.documentsui.BaseActivity;
 import com.android.documentsui.DocumentsApplication;
-import com.android.documentsui.DragShadowBuilder;
 import com.android.documentsui.FocusManager;
 import com.android.documentsui.Injector;
 import com.android.documentsui.MenuManager.DirectoryDetails;
@@ -42,6 +41,7 @@ import com.android.documentsui.OperationDialogFragment.DialogType;
 import com.android.documentsui.ProviderExecutor;
 import com.android.documentsui.R;
 import com.android.documentsui.SharedInputHandler;
+import com.android.documentsui.ShortcutsUpdater;
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.Features;
 import com.android.documentsui.base.RootInfo;
@@ -70,7 +70,6 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
     private Injector<ActionHandler<FilesActivity>> mInjector;
     private ActivityInputHandler mActivityInputHandler;
     private SharedInputHandler mSharedInputHandler;
-    private DragShadowBuilder mShadowBuilder;
 
     public FilesActivity() {
         super(R.layout.files_activity, TAG);
@@ -81,12 +80,16 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
 
         MessageBuilder messages = new MessageBuilder(this);
         Features features = Features.create(this);
+        ScopedPreferences prefs = ScopedPreferences.create(this, PREFERENCES_SCOPE);
+
         mInjector = new Injector<>(
                 features,
                 new Config(),
                 ScopedPreferences.create(this, PREFERENCES_SCOPE),
                 messages,
-                DialogController.create(this, messages));
+                DialogController.create(features, this, messages),
+                DocumentsApplication.getFileTypeLookup(this),
+                new ShortcutsUpdater(this, prefs)::update);
 
         super.onCreate(icicle);
 
@@ -115,7 +118,6 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                 mProviders::getApplicationName,
                 mInjector.getModel()::getItemUri);
 
-        mShadowBuilder = new DragShadowBuilder(this);
         mInjector.actionModeController = new ActionModeController(
                 this,
                 mInjector.selectionMgr,
@@ -132,6 +134,7 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                 mInjector.actionModeController,
                 clipper,
                 DocumentsApplication.getClipStore(this),
+                DocumentsApplication.getDragAndDropManager(this),
                 mInjector);
 
         mInjector.searchManager = mSearchManager;
@@ -232,12 +235,12 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
         super.onPostCreate(savedInstanceState);
         // This check avoids a flicker from "Recents" to "Home".
         // Only update action bar at this point if there is an active
-        // serach. Why? Because this avoid an early (undesired) load of
+        // search. Why? Because this avoid an early (undesired) load of
         // the recents root...which is the default root in other activities.
         // In Files app "Home" is the default, but it is loaded async.
         // update will be called once Home root is loaded.
         // Except while searching we need this call to ensure the
-        // search bits get layed out correctly.
+        // search bits get laid out correctly.
         if (mSearchManager.isSearching()) {
             mNavigator.update();
         }
@@ -277,23 +280,17 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
     public boolean onOptionsItemSelected(MenuItem item) {
         DirectoryFragment dir;
         switch (item.getItemId()) {
-            case R.id.menu_create_dir:
+            case R.id.option_menu_create_dir:
                 assert(canCreateDirectory());
-                showCreateDirectoryDialog();
+                mInjector.actions.showCreateDirectoryDialog();
                 break;
-            case R.id.menu_new_window:
+            case R.id.option_menu_new_window:
                 mInjector.actions.openInNewWindow(mState.stack);
                 break;
-            case R.id.menu_paste_from_clipboard:
-                dir = getDirectoryFragment();
-                if (dir != null) {
-                    dir.pasteFromClipboard();
-                }
-                break;
-            case R.id.menu_settings:
+            case R.id.option_menu_settings:
                 mInjector.actions.openSettings(getCurrentRoot());
                 break;
-            case R.id.menu_select_all:
+            case R.id.option_menu_select_all:
                 mInjector.actions.selectAllFiles();
                 break;
             default:
@@ -348,11 +345,6 @@ public class FilesActivity extends BaseActivity implements ActionHandler.Addons 
                         keyCode,
                         event)
                 || super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    public DragShadowBuilder getShadowBuilder() {
-        return mShadowBuilder;
     }
 
     @Override

@@ -56,6 +56,13 @@
             android:theme="@android:style/Theme.NoDisplay">
         </activity>
 
+        <activity
+            android:name=".inspector.DocumentInspectorActivity"
+            android:label="@string/menu_inspector"
+            android:icon="@drawable/launcher_icon"
+            android:theme="@style/DocumentsTheme">
+        </activity>
+
         <!--  Preserve original launcher activity from Nougat. -->
         <activity-alias
             android:name=".LauncherActivity"
@@ -77,11 +84,6 @@
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
             <intent-filter>
-                <action android:name="android.provider.action.BROWSE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="vnd.android.document/root" />
-            </intent-filter>
-            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="vnd.android.document/root" />
@@ -91,11 +93,16 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="vnd.android.document/directory" />
             </intent-filter>
+        </activity>
+
+        <activity-alias android:name="ViewDownloadsActivity"
+                        android:targetActivity=".files.FilesActivity"
+                        android:enabled="@bool/handle_view_downloads_intent">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_DOWNLOADS" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <activity
             android:name=".OpenExternalDirectoryActivity"

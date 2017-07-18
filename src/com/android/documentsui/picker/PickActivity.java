@@ -34,6 +34,7 @@ import android.view.Menu;
 
 import com.android.documentsui.ActionModeController;
 import com.android.documentsui.BaseActivity;
+import com.android.documentsui.DocumentsApplication;
 import com.android.documentsui.FocusManager;
 import com.android.documentsui.Injector;
 import com.android.documentsui.MenuManager.DirectoryDetails;
@@ -54,6 +55,7 @@ import com.android.documentsui.sidebar.RootsFragment;
 import com.android.documentsui.ui.DialogController;
 import com.android.documentsui.ui.MessageBuilder;
 
+import java.util.Collection;
 import java.util.List;
 
 public class PickActivity extends BaseActivity implements ActionHandler.Addons {
@@ -75,12 +77,16 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
     public void onCreate(Bundle icicle) {
 
         Features features = Features.create(this);
+        ScopedPreferences prefs = ScopedPreferences.create(this, PREFERENCES_SCOPE);
+
         mInjector = new Injector<>(
                 features,
                 new Config(),
-                ScopedPreferences.create(this, PREFERENCES_SCOPE),
+                prefs,
                 new MessageBuilder(this),
-                DialogController.create(this, null));
+                DialogController.create(features, this, null),
+                DocumentsApplication.getFileTypeLookup(this),
+                (Collection<RootInfo> roots) -> {});
 
         super.onCreate(icicle);
 
