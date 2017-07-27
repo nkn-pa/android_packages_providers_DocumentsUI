@@ -19,6 +19,7 @@ package com.android.documentsui.base;
 import android.annotation.PluralsRes;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -27,6 +28,7 @@ import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Looper;
 import android.provider.DocumentsContract;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.text.format.Time;
@@ -34,6 +36,7 @@ import android.util.Log;
 import android.view.WindowManager;
 
 import com.android.documentsui.R;
+import com.android.documentsui.ui.MessageBuilder;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -102,6 +105,11 @@ public final class Shared {
     public static final String EXTRA_BENCHMARK = "com.android.documentsui.benchmark";
 
     /**
+     * Extra flag used to signify to inspector that debug section can be shown.
+     */
+    public static final String EXTRA_SHOW_DEBUG = "com.android.documentsui.SHOW_DEBUG";
+
+    /**
      * Maximum number of items in a Binder transaction packet.
      */
     public static final int MAX_DOCS_IN_INTENT = 500;
@@ -119,7 +127,7 @@ public final class Shared {
     }
 
     /**
-     * @deprecated use {@ link MessageBuilder#getQuantityString}
+     * @deprecated use {@link MessageBuilder#getQuantityString}
      */
     @Deprecated
     public static final String getQuantityString(Context context, @PluralsRes int resourceId, int quantity) {
@@ -215,10 +223,13 @@ public final class Shared {
      * Method can be overridden if the change of the behavior of the the child activity is needed.
      */
     public static Uri getDefaultRootUri(Activity activity) {
-        return shouldShowDocumentsRoot(activity)
-                ? DocumentsContract.buildHomeUri()
-                : DocumentsContract.buildRootUri(
-                        Providers.AUTHORITY_DOWNLOADS, Providers.ROOT_ID_DOWNLOADS);
+        Uri defaultUri = Uri.parse(activity.getResources().getString(R.string.default_root_uri));
+
+        if (!DocumentsContract.isRootUri(activity, defaultUri)) {
+            throw new RuntimeException("Default Root URI is not a valid root URI.");
+        }
+
+        return defaultUri;
     }
 
     public static boolean isHardwareKeyboardAvailable(Context context) {
@@ -245,6 +256,12 @@ public final class Shared {
      */
     public static boolean mustShowDeviceRoot(Intent intent) {
         return intent.getBooleanExtra(DocumentsContract.EXTRA_SHOW_ADVANCED, false);
+    }
+
+    public static String getDeviceName(ContentResolver resolver) {
+        // We match the value supplied by ExternalStorageProvider for
+        // the internal storage root.
+        return Settings.Global.getString(resolver, Settings.Global.DEVICE_NAME);
     }
 
     public static void checkMainLoop() {

@@ -32,11 +32,13 @@ public final class TableHeaderController implements SortController.WidgetControl
     private final HeaderCell mTitleCell;
     private final HeaderCell mSummaryCell;
     private final HeaderCell mSizeCell;
+    private final HeaderCell mFileTypeCell;
     private final HeaderCell mDateCell;
 
     // We assign this here porque each method reference creates a new object
     // instance (which is wasteful).
     private final View.OnClickListener mOnCellClickListener = this::onCellClicked;
+    private final SortModel.UpdateListener mModelListener = this::onModelUpdate;
 
     private final SortModel mModel;
 
@@ -50,23 +52,30 @@ public final class TableHeaderController implements SortController.WidgetControl
         mTitleCell = (HeaderCell) tableHeader.findViewById(android.R.id.title);
         mSummaryCell = (HeaderCell) tableHeader.findViewById(android.R.id.summary);
         mSizeCell = (HeaderCell) tableHeader.findViewById(R.id.size);
+        mFileTypeCell = (HeaderCell) tableHeader.findViewById(R.id.file_type);
         mDateCell = (HeaderCell) tableHeader.findViewById(R.id.date);
 
         onModelUpdate(mModel, SortModel.UPDATE_TYPE_UNSPECIFIED);
 
-        mModel.addListener(this::onModelUpdate);
+        mModel.addListener(mModelListener);
     }
 
     private void onModelUpdate(SortModel model, int updateTypeUnspecified) {
         bindCell(mTitleCell, SortModel.SORT_DIMENSION_ID_TITLE);
         bindCell(mSummaryCell, SortModel.SORT_DIMENSION_ID_SUMMARY);
         bindCell(mSizeCell, SortModel.SORT_DIMENSION_ID_SIZE);
+        bindCell(mFileTypeCell, SortModel.SORT_DIMENSION_ID_FILE_TYPE);
         bindCell(mDateCell, SortModel.SORT_DIMENSION_ID_DATE);
     }
 
     @Override
     public void setVisibility(int visibility) {
         mTableHeader.setVisibility(visibility);
+    }
+
+    @Override
+    public void destroy() {
+        mModel.removeListener(mModelListener);
     }
 
     private void bindCell(HeaderCell cell, @SortDimensionId int id) {
