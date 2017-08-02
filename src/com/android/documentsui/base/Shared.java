@@ -26,6 +26,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Configuration;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Looper;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
@@ -51,7 +52,7 @@ public final class Shared {
 
     public static final String TAG = "Documents";
 
-    public static final boolean DEBUG = false;
+    public static final boolean DEBUG = Build.IS_DEBUGGABLE;
     public static final boolean VERBOSE = DEBUG && Log.isLoggable(TAG, Log.VERBOSE);
 
     /** Intent action name to pick a copy destination. */
@@ -163,16 +164,6 @@ public final class Shared {
         return list instanceof ArrayList
             ? (ArrayList<T>) list
             : new ArrayList<>(list);
-    }
-
-    /**
-     * Returns a condensed stacktrace in String format, separated by \n.
-     */
-    public static String getStackTrace(Exception e) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        e.printStackTrace(pw);
-        return sw.toString();
     }
 
     /**
