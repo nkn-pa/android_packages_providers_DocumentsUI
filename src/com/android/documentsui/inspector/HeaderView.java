@@ -17,12 +17,14 @@ package com.android.documentsui.inspector;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.ImageView.ScaleType;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -42,7 +44,6 @@ public final class HeaderView extends RelativeLayout implements Consumer<Documen
 
     private final Context mContext;
     private final View mHeader;
-    private ImageView mMime;
     private ImageView mThumbnail;
     private final TextView mTitle;
     private Point mImageDimensions;
@@ -61,7 +62,6 @@ public final class HeaderView extends RelativeLayout implements Consumer<Documen
                 Context.LAYOUT_INFLATER_SERVICE);
         mContext = context;
         mHeader = inflater.inflate(R.layout.inspector_header, null);
-        mMime = (ImageView) mHeader.findViewById(R.id.inspector_mime);
         mThumbnail = (ImageView) mHeader.findViewById(R.id.inspector_thumbnail);
         mTitle = (TextView) mHeader.findViewById(R.id.inspector_file_title);
 
@@ -76,8 +76,12 @@ public final class HeaderView extends RelativeLayout implements Consumer<Documen
             addView(mHeader);
         }
 
-        if(!hasHeaderImage()) {
-            loadHeaderImage(info);
+        if (!hasHeaderImage()) {
+            if (info.isDirectory()) {
+                loadFileIcon(info);
+            } else {
+                loadHeaderImage(info);
+            }
         }
         mTitle.setText(info.displayName);
     }
@@ -91,15 +95,31 @@ public final class HeaderView extends RelativeLayout implements Consumer<Documen
         return false;
     }
 
+    private void loadFileIcon(DocumentInfo info) {
+        Drawable mimeIcon = mContext.getContentResolver()
+            .getTypeDrawable(info.mimeType);
+        mThumbnail.setScaleType(ScaleType.FIT_CENTER);
+        mThumbnail.setImageDrawable(mimeIcon);
+    }
+
     private void loadHeaderImage(DocumentInfo info) {
 
-        // load the mime icon.
-        Drawable d = mContext.getContentResolver().getTypeDrawable(info.mimeType);
-        mMime.setImageDrawable(d);
+        Consumer<Bitmap> callback = new Consumer<Bitmap>() {
+            @Override
+            public void accept(Bitmap bitmap) {
+                if (bitmap != null) {
+                    mThumbnail.setScaleType(ScaleType.CENTER_CROP);
+                    mThumbnail.setImageBitmap(bitmap);
+                } else {
+                    loadFileIcon(info);
+                }
+                mThumbnail.animate().alpha(1.0f).start();
+            }
+        };
 
         // load the thumbnail async.
-        final ThumbnailLoader task = new ThumbnailLoader(info.derivedUri, mMime, mThumbnail,
-            mImageDimensions, info.lastModified, ThumbnailLoader.ANIM_FADE_IN, false);
+        final ThumbnailLoader task = new ThumbnailLoader(info.derivedUri, mThumbnail,
+            mImageDimensions, info.lastModified, callback, false);
         task.executeOnExecutor(ProviderExecutor.forAuthority(info.derivedUri.getAuthority()),
             info.derivedUri);
     }
