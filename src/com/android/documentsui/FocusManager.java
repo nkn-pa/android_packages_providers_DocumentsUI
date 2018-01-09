@@ -390,11 +390,10 @@ public final class FocusManager implements FocusHandler {
                     });
 
             try {
-                mScope.view.smoothScrollToPosition(pos);
+                recyclerView.smoothScrollToPosition(pos);
             } catch(IllegalArgumentException e) {
                 Log.w(TAG, "Invalid target position :" + pos, e);
             }
-            recyclerView.smoothScrollToPosition(pos);
         }
     }
 
