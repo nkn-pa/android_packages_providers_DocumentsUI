@@ -136,7 +136,7 @@ public final class FocusManager implements FocusHandler {
 
     @Override
     public boolean focusDirectoryList() {
-        if (mScope.adapter.getItemCount() == 0) {
+        if (mScope.adapter == null || mScope.adapter.getItemCount() == 0) {
             if (DEBUG) Log.v(TAG, "Nothing to focus.");
             return false;
         }
