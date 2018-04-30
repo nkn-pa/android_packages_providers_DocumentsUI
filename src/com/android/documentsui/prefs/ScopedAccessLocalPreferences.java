@@ -100,21 +100,24 @@ public class ScopedAccessLocalPreferences {
         getPrefs(context).edit().putInt(key, status).apply();
     }
 
-    public static void clearScopedAccessPreferences(Context context, String packageName) {
+    public static int clearScopedAccessPreferences(Context context, String packageName) {
         final String keySubstring = "|" + packageName + "|";
         final SharedPreferences prefs = getPrefs(context);
         Editor editor = null;
+        int removed = 0;
         for (final String key : prefs.getAll().keySet()) {
             if (key.contains(keySubstring)) {
                 if (editor == null) {
                     editor = prefs.edit();
                 }
                 editor.remove(key);
+                removed ++;
             }
         }
         if (editor != null) {
             editor.apply();
         }
+        return removed;
     }
 
     private static String getScopedAccessDenialsKey(String packageName, @Nullable String uuid,
@@ -170,7 +173,10 @@ public class ScopedAccessLocalPreferences {
                 Log.w(TAG, "error gettting value for key '" + key + "': " + value);
                 continue;
             }
-            permissions.add(getPermission(key, status));
+            final Permission permission = getPermission(key, status);
+            if (permission != null) {
+                permissions.add(permission);
+            }
         }
 
         return permissions;
