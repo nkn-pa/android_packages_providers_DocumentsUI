@@ -20,8 +20,8 @@ import static com.android.documentsui.base.Providers.AUTHORITY_STORAGE;
 import static com.android.documentsui.base.Providers.ROOT_ID_DEVICE;
 
 import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.ContentProviderClient;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
@@ -31,9 +31,10 @@ import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.provider.Settings;
-import android.support.test.filters.LargeTest;
 import android.text.TextUtils;
 import android.util.Log;
+
+import androidx.test.filters.LargeTest;
 
 import com.android.documentsui.base.DocumentInfo;
 import com.android.documentsui.base.RootInfo;
@@ -41,15 +42,13 @@ import com.android.documentsui.base.State;
 import com.android.documentsui.files.FilesActivity;
 import com.android.documentsui.services.TestNotificationService;
 
-import org.apache.commons.compress.archivers.ArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
 * This class test the below points
@@ -249,12 +248,12 @@ public class FileCopyUiTest extends ActivityTest<FilesActivity> {
 
     private void loadImageFromResources(Uri root, DocumentsProviderHelper helper, int resId,
             Resources res) throws Exception {
-        ZipArchiveInputStream in = null;
+        ZipInputStream in = null;
         int read = 0;
         int count = 0;
         try {
-            in = new ZipArchiveInputStream(res.openRawResource(resId));
-            ArchiveEntry archiveEntry = null;
+            in = new ZipInputStream(res.openRawResource(resId));
+            ZipEntry archiveEntry = null;
             while ((archiveEntry = in.getNextEntry()) != null && (count++ < TARGET_COUNT)) {
                 String fileName = archiveEntry.getName();
                 Uri uri = helper.createDocument(root, "image/png", fileName);

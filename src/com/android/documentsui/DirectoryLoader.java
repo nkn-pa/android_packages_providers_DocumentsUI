@@ -21,18 +21,20 @@ import static com.android.documentsui.base.SharedMinimal.VERBOSE;
 import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.CancellationSignal;
+import android.os.FileUtils;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.OperationCanceledException;
 import android.os.RemoteException;
 import android.provider.DocumentsContract.Document;
 import android.util.Log;
+
+import androidx.loader.content.AsyncTaskLoader;
 
 import com.android.documentsui.archives.ArchivesProvider;
 import com.android.documentsui.base.DebugFlags;
@@ -43,10 +45,6 @@ import com.android.documentsui.base.Lookup;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.roots.RootCursorWrapper;
 import com.android.documentsui.sorting.SortModel;
-
-import android.os.FileUtils;
-
-import androidx.loader.content.AsyncTaskLoader;
 
 import java.util.concurrent.Executor;
 
@@ -62,6 +60,7 @@ public class DirectoryLoader extends AsyncTaskLoader<DirectoryResult> {
     private final SortModel mModel;
     private final Lookup<String, String> mFileTypeLookup;
     private final boolean mSearchMode;
+    private final Bundle mQueryArgs;
 
     private DocumentInfo mDoc;
     private CancellationSignal mSignal;
@@ -78,7 +77,7 @@ public class DirectoryLoader extends AsyncTaskLoader<DirectoryResult> {
             SortModel model,
             Lookup<String, String> fileTypeLookup,
             ContentLock lock,
-            boolean inSearchMode) {
+            Bundle queryArgs) {
 
         super(context);
         mFeatures = features;
@@ -87,7 +86,8 @@ public class DirectoryLoader extends AsyncTaskLoader<DirectoryResult> {
         mModel = model;
         mDoc = doc;
         mFileTypeLookup = fileTypeLookup;
-        mSearchMode = inSearchMode;
+        mSearchMode = queryArgs != null;
+        mQueryArgs = queryArgs;
         mObserver = new LockingContentObserver(lock, this::onContentChanged);
     }
 
@@ -120,20 +120,20 @@ public class DirectoryLoader extends AsyncTaskLoader<DirectoryResult> {
             }
             result.client = client;
 
-            Resources resources = getContext().getResources();
-            if (mFeatures.isContentPagingEnabled()) {
-                Bundle queryArgs = new Bundle();
-                mModel.addQuerySortArgs(queryArgs);
+            final Bundle queryArgs = new Bundle();
+            mModel.addQuerySortArgs(queryArgs);
 
+            if (mSearchMode) {
+                queryArgs.putAll(mQueryArgs);
+            }
+
+            if (mFeatures.isContentPagingEnabled()) {
                 // TODO: At some point we don't want forced flags to override real paging...
                 // and that point is when we have real paging.
                 DebugFlags.addForcedPagingArgs(queryArgs);
-
-                cursor = client.query(mUri, null, queryArgs, mSignal);
-            } else {
-                cursor = client.query(
-                        mUri, null, null, null, mModel.getDocumentSortQuery(), mSignal);
             }
+
+            cursor = client.query(mUri, null, queryArgs, mSignal);
 
             if (cursor == null) {
                 throw new RemoteException("Provider returned null");
@@ -151,7 +151,7 @@ public class DirectoryLoader extends AsyncTaskLoader<DirectoryResult> {
             // TODO: When API tweaks have landed, use ContentResolver.EXTRA_HONORED_ARGS
             // instead of checking directly for ContentResolver.QUERY_ARG_SORT_COLUMNS (won't work)
             if (mFeatures.isContentPagingEnabled()
-                        && cursor.getExtras().containsKey(ContentResolver.QUERY_ARG_SORT_COLUMNS)) {
+                    && cursor.getExtras().containsKey(ContentResolver.QUERY_ARG_SORT_COLUMNS)) {
                 if (VERBOSE) Log.d(TAG, "Skipping sort of pre-sorted cursor. Booya!");
             } else {
                 cursor = mModel.sortCursor(cursor, mFileTypeLookup);

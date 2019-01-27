@@ -16,9 +16,15 @@
 <resources>
 
     <declare-styleable name="ActionBarView">
+        <attr name="android:colorBackground" />
         <attr name="android:colorPrimary" />
         <attr name="android:colorControlNormal" />
         <attr name="android:textColorPrimary" />
+    </declare-styleable>
+
+    <declare-styleable name="DrawerMenuTitle">
+        <attr name="android:textColor" />
+        <attr name="android:textSize" />
     </declare-styleable>
 
     <declare-styleable name="CardView">
