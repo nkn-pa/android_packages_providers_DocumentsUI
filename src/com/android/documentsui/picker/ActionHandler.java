@@ -26,6 +26,7 @@ import static com.android.documentsui.base.State.ACTION_PICK_COPY_DESTINATION;
 import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.QuickViewConstants;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -42,6 +43,7 @@ import com.android.documentsui.AbstractActionHandler;
 import com.android.documentsui.ActivityConfig;
 import com.android.documentsui.DocumentsAccess;
 import com.android.documentsui.Injector;
+import com.android.documentsui.MetricConsts;
 import com.android.documentsui.Metrics;
 import com.android.documentsui.Model;
 import com.android.documentsui.base.BooleanConsumer;
@@ -53,6 +55,7 @@ import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
 import com.android.documentsui.dirlist.AnimationView;
+import com.android.documentsui.files.QuickViewIntentBuilder;
 import com.android.documentsui.picker.ActionHandler.Addons;
 import com.android.documentsui.queries.SearchViewManager;
 import com.android.documentsui.roots.ProvidersAccess;
@@ -70,6 +73,9 @@ import javax.annotation.Nullable;
 class ActionHandler<T extends FragmentActivity & Addons> extends AbstractActionHandler<T> {
 
     private static final String TAG = "PickerActionHandler";
+    private static final String[] PREVIEW_FEATURES = {
+            QuickViewConstants.FEATURE_VIEW
+    };
 
     private final Features mFeatures;
     private final ActivityConfig mConfig;
@@ -115,8 +121,8 @@ class ActionHandler<T extends FragmentActivity & Addons> extends AbstractActionH
             return;
         }
 
-        if (mFeatures.isLaunchToDocumentEnabled() && launchToDocument(intent)) {
-            if (DEBUG) Log.d(TAG, "Launched to a document.");
+        if (mFeatures.isLaunchToDocumentEnabled() && launchToInitialUri(intent)) {
+            if (DEBUG) Log.d(TAG, "Launched to initial uri.");
             return;
         }
 
@@ -143,10 +149,15 @@ class ActionHandler<T extends FragmentActivity & Addons> extends AbstractActionH
         return false;
     }
 
-    private boolean launchToDocument(Intent intent) {
+    private boolean launchToInitialUri(Intent intent) {
         Uri uri = intent.getParcelableExtra(DocumentsContract.EXTRA_INITIAL_URI);
         if (uri != null) {
-            return launchToDocument(uri);
+            if (DocumentsContract.isRootUri(mActivity, uri)) {
+                loadRoot(uri);
+                return true;
+            } else if (DocumentsContract.isDocumentUri(mActivity, uri)) {
+                return launchToDocument(uri);
+            }
         }
 
         return false;
@@ -228,13 +239,13 @@ class ActionHandler<T extends FragmentActivity & Addons> extends AbstractActionH
 
     @Override
     public void openRoot(RootInfo root) {
-        Metrics.logRootVisited(mActivity, Metrics.PICKER_SCOPE, root);
+        Metrics.logRootVisited(MetricConsts.PICKER_SCOPE, root);
         mActivity.onRootPicked(root);
     }
 
     @Override
     public void openRoot(ResolveInfo info) {
-        Metrics.logAppVisited(mActivity, info);
+        Metrics.logAppVisited(info);
         final Intent intent = new Intent(mActivity.getIntent());
         intent.setFlags(intent.getFlags() & ~Intent.FLAG_ACTIVITY_FORWARD_RESULT);
         intent.setComponent(new ComponentName(
@@ -264,22 +275,57 @@ class ActionHandler<T extends FragmentActivity & Addons> extends AbstractActionH
         return false;
     }
 
-    void pickDocument(DocumentInfo pickTarget) {
+    @Override
+    public boolean previewItem(ItemDetails<String> details) {
+        final DocumentInfo doc = mModel.getDocument(details.getSelectionKey());
+        if (doc == null) {
+            Log.w(TAG, "Can't view item. No Document available for modeId: "
+                    + details.getSelectionKey());
+            return false;
+        }
+        return priviewDocument(doc);
+
+    }
+
+    @VisibleForTesting
+    boolean priviewDocument(DocumentInfo doc) {
+        Intent intent = new QuickViewIntentBuilder(
+                mActivity.getPackageManager(),
+                mActivity.getResources(),
+                doc,
+                mModel,
+                true /* fromPicker */).build();
+
+        if (intent != null) {
+            try {
+                mActivity.startActivity(intent);
+                return true;
+            } catch (SecurityException e) {
+                Log.e(TAG, "Caught security error: " + e.getLocalizedMessage());
+            }
+        } else {
+            Log.e(TAG, "Quick view intetn is null");
+        }
+
+        mInjector.dialogs.showNoApplicationFound();
+        return false;
+    }
+
+    void pickDocument(FragmentManager fm, DocumentInfo pickTarget) {
         assert(pickTarget != null);
         Uri result;
         switch (mState.action) {
             case ACTION_OPEN_TREE:
-                result = DocumentsContract.buildTreeDocumentUri(
-                        pickTarget.authority, pickTarget.documentId);
+                mInjector.dialogs.confirmAction(fm, pickTarget, ConfirmFragment.TYPE_OEPN_TREE);
                 break;
             case ACTION_PICK_COPY_DESTINATION:
                 result = pickTarget.derivedUri;
+                finishPicking(result);
                 break;
             default:
                 // Should not be reached
                 throw new IllegalStateException("Invalid mState.action");
         }
-        finishPicking(result);
     }
 
     void saveDocument(
@@ -306,7 +352,7 @@ class ActionHandler<T extends FragmentActivity & Addons> extends AbstractActionH
         // Adding a confirmation dialog breaks an inherited CTS test (testCreateExisting), so we
         // need to add a feature flag to bypass this feature in ARC++ environment.
         if (mFeatures.isOverwriteConfirmationEnabled()) {
-            mInjector.dialogs.confirmOverwrite(fm, replaceTarget);
+            mInjector.dialogs.confirmAction(fm, replaceTarget, ConfirmFragment.TYPE_OVERWRITE);
         } else {
             finishPicking(replaceTarget.derivedUri);
         }

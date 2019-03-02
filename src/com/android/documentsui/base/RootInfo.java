@@ -16,6 +16,8 @@
 
 package com.android.documentsui.base;
 
+import static android.provider.DocumentsContract.QUERY_ARG_MIME_TYPES;
+
 import static com.android.documentsui.base.DocumentInfo.getCursorInt;
 import static com.android.documentsui.base.DocumentInfo.getCursorLong;
 import static com.android.documentsui.base.DocumentInfo.getCursorString;
@@ -52,8 +54,10 @@ import java.util.Objects;
 public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
 
     private static final String TAG = "RootInfo";
+    private static final int LOAD_FROM_CONTENT_RESOLVER = -1;
     // private static final int VERSION_INIT = 1; // Not used anymore
     private static final int VERSION_DROP_TYPE = 2;
+    private static final int VERSION_SEARCH_TYPE = 3;
 
     // The values of these constants determine the sort order of various roots in the RootsFragment.
     @IntDef(flag = false, value = {
@@ -90,6 +94,7 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
     public String documentId;
     public long availableBytes;
     public String mimeTypes;
+    public String queryArgs;
 
     /** Derived fields that aren't persisted */
     public String[] derivedMimeTypes;
@@ -115,6 +120,7 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
         availableBytes = -1;
         mimeTypes = null;
         ejecting = false;
+        queryArgs = null;
 
         derivedMimeTypes = null;
         derivedIcon = 0;
@@ -125,6 +131,8 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
     public void read(DataInputStream in) throws IOException {
         final int version = in.readInt();
         switch (version) {
+            case VERSION_SEARCH_TYPE:
+                queryArgs = DurableUtils.readNullableString(in);
             case VERSION_DROP_TYPE:
                 authority = DurableUtils.readNullableString(in);
                 rootId = DurableUtils.readNullableString(in);
@@ -144,7 +152,8 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
 
     @Override
     public void write(DataOutputStream out) throws IOException {
-        out.writeInt(VERSION_DROP_TYPE);
+        out.writeInt(VERSION_SEARCH_TYPE);
+        DurableUtils.writeNullableString(out, queryArgs);
         DurableUtils.writeNullableString(out, authority);
         DurableUtils.writeNullableString(out, rootId);
         out.writeInt(flags);
@@ -191,6 +200,7 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
         root.documentId = getCursorString(cursor, Root.COLUMN_DOCUMENT_ID);
         root.availableBytes = getCursorLong(cursor, Root.COLUMN_AVAILABLE_BYTES);
         root.mimeTypes = getCursorString(cursor, Root.COLUMN_MIME_TYPES);
+        root.queryArgs = getCursorString(cursor, Root.COLUMN_QUERY_ARGS);
         root.deriveFields();
         return root;
     }
@@ -200,7 +210,7 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
 
         if (isExternalStorageHome()) {
             derivedType = TYPE_LOCAL;
-            derivedIcon = R.drawable.ic_root_documents;
+            derivedIcon = LOAD_FROM_CONTENT_RESOLVER;
         } else if (isMtp()) {
             derivedType = TYPE_MTP;
             derivedIcon = R.drawable.ic_usb_storage;
@@ -218,13 +228,13 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
             derivedIcon = R.drawable.ic_root_download;
         } else if (isImages()) {
             derivedType = TYPE_IMAGES;
-            derivedIcon = R.drawable.image_root_icon;
+            derivedIcon = LOAD_FROM_CONTENT_RESOLVER;
         } else if (isVideos()) {
             derivedType = TYPE_VIDEO;
-            derivedIcon = R.drawable.video_root_icon;
+            derivedIcon = LOAD_FROM_CONTENT_RESOLVER;
         } else if (isAudio()) {
             derivedType = TYPE_AUDIO;
-            derivedIcon = R.drawable.audio_root_icon;
+            derivedIcon = LOAD_FROM_CONTENT_RESOLVER;
         } else if (isRecents()) {
             derivedType = TYPE_RECENTS;
         } else {
@@ -319,6 +329,10 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
         return (flags & Root.FLAG_SUPPORTS_SEARCH) != 0;
     }
 
+    public boolean supportsMimeTypesSearch() {
+        return queryArgs != null && queryArgs.contains(QUERY_ARG_MIME_TYPES);
+    }
+
     public boolean supportsEject() {
         return (flags & Root.FLAG_SUPPORTS_EJECT) != 0;
     }
@@ -343,8 +357,28 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
         return (flags & Root.FLAG_REMOVABLE_USB) != 0;
     }
 
+    private Drawable loadMimeTypeIcon(Context context) {
+
+        if (isExternalStorageHome()) {
+            return IconUtils.loadMimeIcon(context, DocumentsContract.Document.MIME_TYPE_DIR);
+        }
+
+        switch (derivedType) {
+            case TYPE_IMAGES:
+                return IconUtils.loadMimeIcon(context, MimeTypes.IMAGE_PREFIX);
+            case TYPE_AUDIO:
+                return IconUtils.loadMimeIcon(context, MimeTypes.AUDIO_PREFIX);
+            case TYPE_VIDEO:
+                return IconUtils.loadMimeIcon(context, MimeTypes.VIDEO_PREFIX);
+            default:
+                return IconUtils.loadMimeIcon(context, MimeTypes.GENERIC_TYPE);
+        }
+    }
+
     public Drawable loadIcon(Context context) {
-        if (derivedIcon != 0) {
+        if (derivedIcon == LOAD_FROM_CONTENT_RESOLVER) {
+            return loadMimeTypeIcon(context);
+        } else if (derivedIcon != 0) {
             return context.getDrawable(derivedIcon);
         } else {
             return IconUtils.loadPackageIcon(context, authority, icon);
@@ -352,7 +386,10 @@ public class RootInfo implements Durable, Parcelable, Comparable<RootInfo> {
     }
 
     public Drawable loadDrawerIcon(Context context) {
-        if (derivedIcon != 0) {
+        if (derivedIcon == LOAD_FROM_CONTENT_RESOLVER) {
+            return IconUtils.applyTintColor(context, loadMimeTypeIcon(context),
+                    R.color.item_root_icon);
+        } else if (derivedIcon != 0) {
             return IconUtils.applyTintColor(context, derivedIcon, R.color.item_root_icon);
         } else {
             return IconUtils.loadPackageIcon(context, authority, icon);

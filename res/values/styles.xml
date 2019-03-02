@@ -15,27 +15,11 @@
 -->
 
 <resources xmlns:android="http://schemas.android.com/apk/res/android">
-    <style name="ActionBarTheme" parent="@android:style/ThemeOverlay.Material.ActionBar">
-        <item name="android:colorControlNormal">@color/g_grey</item>
-        <item name="android:textColorHighlight">@color/text_highlight</item>
-        <item name="android:textColorPrimary">@color/g_grey</item>
-        <item name="android:textColorSecondary">@color/text_secondary</item>
-        <item name="android:textColorHint">@color/text_hint</item>
-        <item name="android:textCursorDrawable">@drawable/text_cursor</item>
-        <item name="android:titleTextStyle">@android:style/TextAppearance.Material.Widget.ActionBar.Title</item>
-        <item name="android:subtitleTextStyle">@android:style/TextAppearance.Material.Widget.ActionBar.Subtitle</item>
-    </style>
-
     <style name="ActionModeStyle" parent="Widget.AppCompat.ActionMode">
-        <item name="android:background">?android:attr/actionModeBackground</item>
-        <item name="android:backgroundSplit">?android:attr/actionModeBackground</item>
-        <item name="android:titleTextStyle">@android:style/TextAppearance.Material.Widget.ActionMode.Title</item>
-        <item name="android:subtitleTextStyle">@android:style/TextAppearance.Material.Widget.ActionMode.Subtitle</item>
+        <!-- attr "height" was used by support lib should not in overlay scope -->
+        <item name="height">@dimen/action_bar_space_height</item>
+        <item name="android:layout_margin">@dimen/search_bar_margin</item>
     </style>
-
-    <style name="ActionBarPopupTheme" parent="@android:style/ThemeOverlay.Material.Light" />
-
-    <style name="ListViewStyle" parent="@android:style/Widget.Material.Light.ListView"></style>
 
     <style name="CardViewStyle" parent="@style/Widget.MaterialComponents.CardView">
         <item name="colorBackgroundFloating">@drawable/grid_item_background</item>
@@ -55,6 +39,11 @@
         <item name="android:textSize">14sp</item>
     </style>
 
+    <style name="SearchBarTitle"
+           parent="@style/TextAppearance.Widget.AppCompat.Toolbar.Subtitle">
+        <item name="android:textSize">@dimen/search_bar_text_size</item>
+    </style>
+
     <style name="InspectorHeaderTitle" parent="@style/TextAppearance.MaterialComponents.Headline6">
         <item name="android:textColor">?android:attr/textColorSecondary</item>
     </style>
@@ -62,6 +51,8 @@
     <style name="InspectorKeySubTitle" parent="@style/TextAppearance.MaterialComponents.Subtitle1">
         <item name="android:textColor">?android:attr/textColorSecondary</item>
     </style>
+
+    <style name="DrawerMenuTitle" parent="@android:style/TextAppearance.Material.Title"/>
 
     <style name="DrawerMenuPrimary" parent="android:style/TextAppearance.Material.Body2">
         <item name="android:textColor">@color/item_root_primary_text</item>
@@ -77,11 +68,11 @@
     </style>
 
     <style name="BottomSheetDialogStyle" parent="@style/Theme.MaterialComponents.BottomSheetDialog">
-        <item name="android:colorPrimary">@android:color/white</item>
+        <item name="android:colorBackground">@android:color/white</item>
         <item name="android:textColorPrimary">@color/g_grey</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">?android:attr/colorPrimary</item>
+        <item name="android:navigationBarColor">?android:attr/colorBackground</item>
         <item name="android:windowIsFloating">false</item>
         <item name="bottomSheetStyle">@style/BottomSheet</item>
         <item name="colorControlHighlight">@color/root_focus_color</item>

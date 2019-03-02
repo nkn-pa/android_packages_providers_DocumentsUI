@@ -17,12 +17,15 @@
 package com.android.documentsui.queries;
 
 import static com.android.documentsui.base.SharedMinimal.DEBUG;
+import static com.android.documentsui.base.State.ACTION_GET_CONTENT;
+import static com.android.documentsui.base.State.ACTION_OPEN;
+import static com.android.documentsui.base.State.ActionType;
 
-import androidx.annotation.Nullable;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.DocumentsContract.Root;
+import android.provider.DocumentsContract;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
@@ -31,6 +34,13 @@ import android.view.MenuItem.OnActionExpandListener;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnFocusChangeListener;
+import android.view.ViewGroup;
+
+import androidx.annotation.GuardedBy;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.widget.SearchView;
+import androidx.appcompat.widget.SearchView.OnQueryTextListener;
 
 import com.android.documentsui.R;
 import com.android.documentsui.base.DocumentInfo;
@@ -38,10 +48,7 @@ import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.base.EventHandler;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
-import androidx.annotation.GuardedBy;
-import androidx.annotation.VisibleForTesting;
-import androidx.appcompat.widget.SearchView;
-import androidx.appcompat.widget.SearchView.OnQueryTextListener;
+import com.android.documentsui.base.State;
 
 import java.util.Timer;
 import java.util.TimerTask;
@@ -60,6 +67,7 @@ public class SearchViewManager implements
 
     private final SearchManagerListener mListener;
     private final EventHandler<String> mCommandProcessor;
+    private final SearchChipViewManager mChipViewManager;
     private final Timer mTimer;
     private final Handler mUiHandler;
 
@@ -69,6 +77,7 @@ public class SearchViewManager implements
     @GuardedBy("mSearchLock")
     private @Nullable TimerTask mQueuedSearchTask;
     private @Nullable String mCurrentSearch;
+    private String mQueryContentFromIntent;
     private boolean mSearchExpanded;
     private boolean mIgnoreNextClose;
     private boolean mFullBar;
@@ -80,15 +89,17 @@ public class SearchViewManager implements
     public SearchViewManager(
             SearchManagerListener listener,
             EventHandler<String> commandProcessor,
+            ViewGroup chipGroup,
             @Nullable Bundle savedState) {
-        this(listener, commandProcessor, savedState, new Timer(),
-                new Handler(Looper.getMainLooper()));
+        this(listener, commandProcessor, new SearchChipViewManager(chipGroup), savedState,
+                new Timer(), new Handler(Looper.getMainLooper()));
     }
 
     @VisibleForTesting
     protected SearchViewManager(
             SearchManagerListener listener,
             EventHandler<String> commandProcessor,
+            SearchChipViewManager chipViewManager,
             @Nullable Bundle savedState,
             Timer timer,
             Handler handler) {
@@ -100,7 +111,76 @@ public class SearchViewManager implements
         mCommandProcessor = commandProcessor;
         mTimer = timer;
         mUiHandler = handler;
-        mCurrentSearch = savedState != null ? savedState.getString(Shared.EXTRA_QUERY) : null;
+        mChipViewManager = chipViewManager;
+        mChipViewManager.setSearchChipViewManagerListener(this::onChipCheckedStateChanged);
+
+        if (savedState != null) {
+            mCurrentSearch = savedState.getString(Shared.EXTRA_QUERY);
+            mChipViewManager.restoreCheckedChipItems(savedState);
+        } else {
+            mCurrentSearch = null;
+        }
+    }
+
+    private void onChipCheckedStateChanged() {
+        performSearch(mCurrentSearch);
+    }
+
+    /**
+     * Parse the query content from Intent. If the action is not {@link State#ACTION_GET_CONTENT}
+     * or {@link State#ACTION_OPEN}, don't perform search.
+     * @param intent the intent to parse.
+     * @param action the action to check.
+     * @return True, if get the query content from the intent. Otherwise, false.
+     */
+    public boolean parseQueryContentFromIntent(Intent intent, @ActionType int action) {
+        if (action == ACTION_OPEN || action == ACTION_GET_CONTENT) {
+            final String queryString = intent.getStringExtra(Intent.EXTRA_CONTENT_QUERY);
+            if (!TextUtils.isEmpty(queryString)) {
+                mQueryContentFromIntent = queryString;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Build the bundle of query arguments.
+     * Example: search string and mime types
+     *
+     * @return the bundle of query arguments
+     */
+    public Bundle buildQueryArgs() {
+        final Bundle queryArgs = new Bundle();
+        if (!TextUtils.isEmpty(mCurrentSearch)) {
+            queryArgs.putString(DocumentsContract.QUERY_ARG_DISPLAY_NAME, mCurrentSearch);
+        }
+
+        final String[] checkedMimeTypes = mChipViewManager.getCheckedMimeTypes();
+        if (checkedMimeTypes != null && checkedMimeTypes.length > 0) {
+            queryArgs.putStringArray(DocumentsContract.QUERY_ARG_MIME_TYPES, checkedMimeTypes);
+        }
+        return queryArgs;
+    }
+
+    /**
+     * Initialize the search chips base on the acceptMimeTypes.
+     *
+     * @param acceptMimeTypes use to filter chips
+     */
+    public void initChipSets(String[] acceptMimeTypes) {
+        mChipViewManager.initChipSets(acceptMimeTypes);
+    }
+
+    /**
+     * Update the search chips base on the acceptMimeTypes.
+     * If the count of matched chips is less than two, we will
+     * hide the chip row.
+     *
+     * @param acceptMimeTypes use to filter chips
+     */
+    public void updateChips(String[] acceptMimeTypes) {
+        mChipViewManager.updateChips(acceptMimeTypes);
     }
 
     public void install(Menu menu, boolean isFullBarSearch) {
@@ -114,12 +194,8 @@ public class SearchViewManager implements
         mSearchView.setOnQueryTextFocusChangeListener(this);
 
         mFullBar = isFullBarSearch;
-        if (mFullBar) {
-            mMenuItem.setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW
-                    | MenuItem.SHOW_AS_ACTION_ALWAYS);
-            mMenuItem.setOnActionExpandListener(this);
-            mSearchView.setMaxWidth(Integer.MAX_VALUE);
-        }
+        mSearchView.setMaxWidth(Integer.MAX_VALUE);
+        mMenuItem.setOnActionExpandListener(this);
 
         restoreSearch();
     }
@@ -176,7 +252,7 @@ public class SearchViewManager implements
         }
 
         final RootInfo root = stack != null ? stack.getRoot() : null;
-        if (root == null || (root.flags & Root.FLAG_SUPPORTS_SEARCH) == 0) {
+        if (root == null || !root.supportsSearch()) {
             supportsSearch = false;
         }
 
@@ -189,7 +265,10 @@ public class SearchViewManager implements
             mCurrentSearch = null;
         }
 
-        mMenuItem.setVisible(supportsSearch);
+        // Recent root show open search bar, do not show duplicate search icon.
+        mMenuItem.setVisible(supportsSearch && !stack.isRecents());
+
+        mChipViewManager.setChipsRowVisible(supportsSearch && root.supportsMimeTypesSearch());
     }
 
     /**
@@ -198,17 +277,18 @@ public class SearchViewManager implements
      * @return True if it cancels search. False if it does not operate search currently.
      */
     public boolean cancelSearch() {
-        if (isExpanded() || isSearching()) {
+        if (mSearchView != null && (isExpanded() || isSearching())) {
             cancelQueuedSearch();
             // If the query string is not empty search view won't get iconified
             mSearchView.setQuery("", false);
 
             if (mFullBar) {
-               onClose();
+                onClose();
             } else {
                 // Causes calling onClose(). onClose() is triggering directory content update.
                 mSearchView.setIconified(true);
             }
+
             return true;
         }
         return false;
@@ -231,15 +311,15 @@ public class SearchViewManager implements
      */
     private void restoreSearch() {
         if (isSearching()) {
-            if (mFullBar) {
-                mMenuItem.expandActionView();
-            } else {
-                mSearchView.setIconified(false);
-            }
-            onSearchExpanded();
+            onSearchBarClicked();
             mSearchView.setQuery(mCurrentSearch, false);
             mSearchView.clearFocus();
         }
+    }
+
+    public void onSearchBarClicked() {
+        mMenuItem.expandActionView();
+        onSearchExpanded();
     }
 
     private void onSearchExpanded() {
@@ -253,6 +333,7 @@ public class SearchViewManager implements
 
     /**
      * Clears the search. Triggers refreshing of the directory content.
+     *
      * @return True if the default behavior of clearing/dismissing SearchView should be overridden.
      *         False otherwise.
      */
@@ -265,7 +346,9 @@ public class SearchViewManager implements
         }
 
         // Refresh the directory if a search was done
-        if (mCurrentSearch != null) {
+        if (mCurrentSearch != null || mChipViewManager.hasCheckedItems()) {
+            // Clear checked chips
+            mChipViewManager.clearCheckedChips();
             mCurrentSearch = null;
             mListener.onSearchChanged(mCurrentSearch);
         }
@@ -282,10 +365,12 @@ public class SearchViewManager implements
 
     /**
      * Called when owning activity is saving state to be used to restore state during creation.
+     *
      * @param state Bundle to save state too
      */
     public void onSaveInstanceState(Bundle state) {
         state.putString(Shared.EXTRA_QUERY, mCurrentSearch);
+        mChipViewManager.onSaveInstanceState(state);
     }
 
     /**
@@ -320,7 +405,7 @@ public class SearchViewManager implements
      */
     @Override
     public void onFocusChange(View v, boolean hasFocus) {
-        if (!hasFocus) {
+        if (!hasFocus && !mChipViewManager.hasCheckedItems()) {
             if (mCurrentSearch == null) {
                 mSearchView.setIconified(true);
             } else if (TextUtils.isEmpty(mSearchView.getQuery())) {
@@ -351,13 +436,17 @@ public class SearchViewManager implements
 
     @Override
     public boolean onQueryTextChange(String newText) {
+        performSearch(newText);
+        return true;
+    }
+
+    private void performSearch(String newText) {
         cancelQueuedSearch();
         synchronized (mSearchLock) {
             mQueuedSearchTask = createSearchTask(newText);
 
             mTimer.schedule(mQueuedSearchTask, SEARCH_DELAY_MS);
         }
-        return true;
     }
 
     @Override
@@ -381,8 +470,21 @@ public class SearchViewManager implements
         return mCurrentSearch;
     }
 
+    /**
+     * Get the query content from intent.
+     * @return If has query content, return the query content. Otherwise, return null
+     * @see #parseQueryContentFromIntent(Intent, int)
+     */
+    public String getQueryContentFromIntent() {
+        return mQueryContentFromIntent;
+    }
+
+    public void setCurrentSearch(String queryString) {
+        mCurrentSearch = queryString;
+    }
+
     public boolean isSearching() {
-        return mCurrentSearch != null;
+        return mCurrentSearch != null || mChipViewManager.hasCheckedItems();
     }
 
     public boolean isExpanded() {
@@ -391,7 +493,9 @@ public class SearchViewManager implements
 
     public interface SearchManagerListener {
         void onSearchChanged(@Nullable String query);
+
         void onSearchFinished();
+
         void onSearchViewChanged(boolean opened);
     }
 }

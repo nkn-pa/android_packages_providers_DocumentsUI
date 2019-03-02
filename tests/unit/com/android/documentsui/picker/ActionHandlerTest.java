@@ -16,8 +16,6 @@
 
 package com.android.documentsui.picker;
 
-import static junit.framework.Assert.assertTrue;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -28,8 +26,9 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Path;
-import android.support.test.filters.MediumTest;
-import android.support.test.runner.AndroidJUnit4;
+
+import androidx.test.filters.MediumTest;
+import androidx.test.runner.AndroidJUnit4;
 
 import com.android.documentsui.AbstractActionHandler;
 import com.android.documentsui.R;
@@ -40,8 +39,8 @@ import com.android.documentsui.base.State;
 import com.android.documentsui.base.State.ActionType;
 import com.android.documentsui.testing.DocumentStackAsserts;
 import com.android.documentsui.testing.TestEnv;
-import com.android.documentsui.testing.TestProvidersAccess;
 import com.android.documentsui.testing.TestLastAccessedStorage;
+import com.android.documentsui.testing.TestProvidersAccess;
 import com.android.documentsui.testing.TestResolveInfo;
 
 import org.junit.AfterClass;
@@ -217,7 +216,7 @@ public class ActionHandlerTest {
 
         mActivity.finishedHandler.assertNotCalled();
 
-        mHandler.pickDocument(TestEnv.FOLDER_2);
+        mHandler.pickDocument(null, TestEnv.FOLDER_2);
 
         mEnv.beforeAsserts();
 
@@ -243,7 +242,9 @@ public class ActionHandlerTest {
 
         mActivity.finishedHandler.assertNotCalled();
 
-        mHandler.pickDocument(TestEnv.FOLDER_2);
+        Uri uri = DocumentsContract.buildTreeDocumentUri(
+                TestEnv.FOLDER_2.authority, TestEnv.FOLDER_2.documentId);
+        mHandler.finishPicking(uri);
 
         mEnv.beforeAsserts();
 
@@ -303,6 +304,16 @@ public class ActionHandlerTest {
         mHandler.saveDocument(null, TestEnv.FILE_JPG);
 
         mEnv.dialogs.assertOverwriteConfirmed(TestEnv.FILE_JPG);
+    }
+
+    @Test
+    public void testPickDocument_ConfirmsOpenTree() {
+        mEnv.state.action = State.ACTION_OPEN_TREE;
+        mEnv.state.stack.changeRoot(TestProvidersAccess.HOME);
+
+        mHandler.pickDocument(null, TestEnv.FOLDER_1);
+
+        mEnv.dialogs.assertDocumentTreeConfirmed(TestEnv.FOLDER_1);
     }
 
     @Test
@@ -464,6 +475,25 @@ public class ActionHandlerTest {
         assertEquals((long) mActivity.startActivityForResult.getLastValue().second,
                 AbstractActionHandler.CODE_FORWARD);
         assertNotNull(mActivity.startActivityForResult.getLastValue().first);
+    }
+
+    @Test
+    public void testOpenAppRootWithQueryContent_matchedContent() throws Exception {
+        final String queryContent = "query";
+        mActivity.intent.putExtra(Intent.EXTRA_CONTENT_QUERY, queryContent);
+        mHandler.openRoot(TestResolveInfo.create());
+        assertEquals(queryContent,
+                mActivity.startActivityForResult.getLastValue().first.getStringExtra(
+                        Intent.EXTRA_CONTENT_QUERY));
+    }
+
+    @Test
+    public void testPreviewItem() throws Exception {
+        mActivity.resources.setQuickViewerPackage("corptropolis.viewer");
+        mActivity.currentRoot = TestProvidersAccess.HOME;
+
+        mHandler.priviewDocument(TestEnv.FILE_GIF);
+        mActivity.assertActivityStarted(Intent.ACTION_QUICK_VIEW);
     }
 
     private void testInitLocationDefaultToRecentsOnAction(@ActionType int action)

@@ -16,6 +16,10 @@
 
 package com.android.documentsui.testing;
 
+import static org.mockito.Mockito.mock;
+
+import android.view.ViewGroup;
+
 import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.queries.CommandInterceptor;
 import com.android.documentsui.queries.SearchViewManager;
@@ -23,7 +27,7 @@ import com.android.documentsui.queries.SearchViewManager;
 /**
  * Test copy of {@link com.android.documentsui.queries.SearchViewManager}
  *
- * Specficially used to test whether {@link #showMenu(boolean)}
+ * Specifically used to test whether {@link #showMenu(boolean)}
  * and {@link #updateMenu()} are called.
  */
 public class TestSearchViewManager extends SearchViewManager {
@@ -37,14 +41,19 @@ public class TestSearchViewManager extends SearchViewManager {
         super(
                 new SearchManagerListener() {
                     @Override
-                    public void onSearchChanged(String query) { }
+                    public void onSearchChanged(String query) {
+                    }
+
                     @Override
-                    public void onSearchFinished() { }
+                    public void onSearchFinished() {
+                    }
+
                     @Override
-                    public void onSearchViewChanged(boolean opened) { }
+                    public void onSearchViewChanged(boolean opened) {
+                    }
                 },
-                new CommandInterceptor(new TestFeatures()),
-                null);
+                new CommandInterceptor(new TestFeatures()), mock(ViewGroup.class),
+                null /* savedState */);
     }
 
     @Override

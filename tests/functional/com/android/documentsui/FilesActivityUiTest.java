@@ -19,7 +19,8 @@ package com.android.documentsui;
 import android.app.Instrumentation;
 import android.net.Uri;
 import android.os.RemoteException;
-import android.support.test.filters.LargeTest;
+
+import androidx.test.filters.LargeTest;
 
 import com.android.documentsui.files.FilesActivity;
 import com.android.documentsui.inspector.InspectorActivity;
@@ -55,7 +56,7 @@ public class FilesActivityUiTest extends ActivityTest<FilesActivity> {
     // to be able to click on it.
     public void testClickRecent() throws Exception {
         bots.roots.openRoot("Recent");
-        bots.main.assertWindowTitle("Recent");
+        bots.main.assertSearchBarShow();
     }
 
     public void testRootClick_SetsWindowTitle() throws Exception {
@@ -123,13 +124,13 @@ public class FilesActivityUiTest extends ActivityTest<FilesActivity> {
         // Now switch back and assert the correct mode sort header mode
         // is restored when we load the root with that display mode.
         bots.roots.openRoot("Images");
-        bots.sortHeader.assertDropdownMode();
+        bots.sort.assertHeaderHide();
         if (bots.main.inFixedLayout()) {
             bots.roots.openRoot("Videos");
-            bots.sortHeader.assertColumnMode();
+            bots.sort.assertHeaderShow();
         } else {
             bots.roots.openRoot("Videos");
-            bots.sortHeader.assertDropdownMode();
+            bots.sort.assertHeaderHide();
         }
     }
 }

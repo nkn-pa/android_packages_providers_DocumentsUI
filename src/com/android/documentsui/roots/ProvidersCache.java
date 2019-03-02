@@ -16,6 +16,8 @@
 
 package com.android.documentsui.roots;
 
+import static android.provider.DocumentsContract.QUERY_ARG_MIME_TYPES;
+
 import static com.android.documentsui.base.SharedMinimal.DEBUG;
 import static com.android.documentsui.base.SharedMinimal.VERBOSE;
 
@@ -107,13 +109,14 @@ public class ProvidersCache implements ProvidersAccess {
 
         // Create a new anonymous "Recents" RootInfo. It's a faker.
         mRecentsRoot = new RootInfo() {{
-                // Special root for recents
-                derivedIcon = R.drawable.ic_root_recent;
-                derivedType = RootInfo.TYPE_RECENTS;
-                flags = Root.FLAG_LOCAL_ONLY | Root.FLAG_SUPPORTS_IS_CHILD;
-                title = mContext.getString(R.string.root_recent);
-                availableBytes = -1;
-            }};
+            // Special root for recents
+            derivedIcon = R.drawable.ic_root_recent;
+            derivedType = RootInfo.TYPE_RECENTS;
+            flags = Root.FLAG_LOCAL_ONLY | Root.FLAG_SUPPORTS_IS_CHILD | Root.FLAG_SUPPORTS_SEARCH;
+            queryArgs = QUERY_ARG_MIME_TYPES;
+            title = mContext.getString(R.string.root_recent);
+            availableBytes = -1;
+        }};
     }
 
     private class RootsChangedObserver extends ContentObserver {

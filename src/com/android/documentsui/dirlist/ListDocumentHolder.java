@@ -37,6 +37,8 @@ import com.android.documentsui.base.Shared;
 import com.android.documentsui.roots.RootCursorWrapper;
 import com.android.documentsui.ui.Views;
 
+import java.util.function.Function;
+
 final class ListDocumentHolder extends DocumentHolder {
 
     private final TextView mTitle;
@@ -44,11 +46,11 @@ final class ListDocumentHolder extends DocumentHolder {
     private final TextView mDate;
     private final TextView mSize;
     private final TextView mType;
-    private final TextView mSummary;
     private final ImageView mIconMime;
     private final ImageView mIconThumb;
     private final ImageView mIconCheck;
     private final View mIconLayout;
+    final View mPreviewIcon;
 
     private final IconHelper mIconHelper;
     private final Lookup<String, String> mFileTypeLookup;
@@ -64,12 +66,12 @@ final class ListDocumentHolder extends DocumentHolder {
         mIconThumb = (ImageView) itemView.findViewById(R.id.icon_thumb);
         mIconCheck = (ImageView) itemView.findViewById(R.id.icon_check);
         mTitle = (TextView) itemView.findViewById(android.R.id.title);
-        mSummary = (TextView) itemView.findViewById(android.R.id.summary);
         mSize = (TextView) itemView.findViewById(R.id.size);
         mDate = (TextView) itemView.findViewById(R.id.date);
         mType = (TextView) itemView.findViewById(R.id.file_type);
         // Warning: mDetails view doesn't exists in layout-sw720dp-land layout
         mDetails = (LinearLayout) itemView.findViewById(R.id.line2);
+        mPreviewIcon = itemView.findViewById(R.id.preview_icon);
 
         mIconHelper = iconHelper;
         mFileTypeLookup = fileTypeLookup;
@@ -115,6 +117,21 @@ final class ListDocumentHolder extends DocumentHolder {
     }
 
     @Override
+    public void bindPreviewIcon(boolean show, Function<View, Boolean> clickCallback) {
+        if (mDoc.isDirectory()) {
+            mPreviewIcon.setVisibility(View.GONE);
+        } else {
+            mPreviewIcon.setVisibility(show ? View.VISIBLE : View.GONE);
+            if (show) {
+                mPreviewIcon.setContentDescription(
+                        itemView.getResources().getString(R.string.preview_file, mDoc.displayName));
+                mPreviewIcon.setAccessibilityDelegate(
+                        new PreviewAccessibilityDelegate(clickCallback));
+            }
+        }
+    }
+
+    @Override
     public boolean inDragRegion(MotionEvent event) {
         // If itemView is activated = selected, then whole region is interactive
         if (itemView.isActivated()) {
@@ -142,6 +159,11 @@ final class ListDocumentHolder extends DocumentHolder {
     @Override
     public boolean inSelectRegion(MotionEvent event) {
         return Views.isEventOver(event, mIconLayout);
+    }
+
+    @Override
+    public boolean inPreviewIconRegion(MotionEvent event) {
+        return Views.isEventOver(event, mPreviewIcon);
     }
 
     /**
@@ -175,20 +197,6 @@ final class ListDocumentHolder extends DocumentHolder {
             // Note, we don't show any details for any directory...ever.
             hasDetails = false;
         } else {
-            // Show summary if the file is partial. Otherwise, there tends
-            // to be a bunch of confusing junk in the summary field
-            // as populated by Downlaods (and others). So to make things
-            // simpler and clearer for the user in list view, we only
-            // show the summary if the file is partial >
-            // which we believe to mean actively downloading.
-            if (mDoc.isPartial() && mDoc.summary != null) {
-                hasDetails = true;
-                mSummary.setText(mDoc.summary);
-                mSummary.setVisibility(View.VISIBLE);
-            } else {
-                mSummary.setVisibility(View.INVISIBLE);
-            }
-
             if (mDoc.lastModified > 0) {
                 hasDetails = true;
                 mDate.setText(Shared.formatTime(mContext, mDoc.lastModified));

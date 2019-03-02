@@ -115,6 +115,33 @@ public class State implements android.os.Parcelable {
         }
     }
 
+    /**
+     * Check current action should have preview function or not.
+     * @return True, if the action should have preview.
+     */
+    public boolean shouldShowPreview() {
+        return action == ACTION_GET_CONTENT
+                || action == ACTION_OPEN_TREE
+                || action == ACTION_OPEN;
+    }
+
+    /**
+     * Check the action is file picking and acceptMimes are all images type or not.
+     * @return True, if acceptMimes are all image type and action is file picking.
+     */
+    public boolean isPhotoPicking() {
+        if (action != ACTION_GET_CONTENT && action != ACTION_OPEN) {
+            return false;
+        }
+
+        for (String mimeType : acceptMimes) {
+            if (!MimeTypes.mimeMatches(MimeTypes.IMAGE_MIME, mimeType)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public int describeContents() {
         return 0;

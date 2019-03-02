@@ -33,7 +33,7 @@ import com.android.documentsui.R;
  * An {@link Item} for apps that supports some picking actions like
  * {@link Intent#ACTION_GET_CONTENT} such as Photos. This is only used in pickers.
  */
-class AppItem extends Item {
+public class AppItem extends Item {
     private static final String STRING_ID_FORMAT = "AppItem{%s/%s}";
 
     public final ResolveInfo info;
@@ -52,6 +52,15 @@ class AppItem extends Item {
         String component = String.format(
                 STRING_ID_FORMAT, activityInfo.applicationInfo.packageName, activityInfo.name);
         return component;
+    }
+
+    protected void bindActionIcon(View actionIconArea, ImageView actionIcon) {
+        actionIconArea.setVisibility(View.VISIBLE);
+        actionIconArea.setFocusable(false);
+        actionIcon.setImageDrawable(
+                IconUtils.applyTintColor(actionIcon.getContext(), R.drawable.ic_exit_to_app,
+                        R.color.item_action_icon));
+
     }
 
     @Override
@@ -73,10 +82,7 @@ class AppItem extends Item {
         icon.setImageDrawable(info.loadIcon(pm));
         titleView.setText(title);
 
-        actionIconArea.setVisibility(View.VISIBLE);
-        actionIconArea.setFocusable(false);
-        actionIcon.setImageDrawable(IconUtils.applyTintColor(context, R.drawable.ic_exit_to_app,
-                R.color.item_action_icon));
+        bindActionIcon(actionIconArea, actionIcon);
 
         // TODO: match existing summary behavior from disambig dialog
         summary.setVisibility(View.GONE);

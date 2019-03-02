@@ -33,6 +33,7 @@ import com.android.documentsui.Model;
 import com.android.documentsui.Model.Update;
 import com.android.documentsui.base.EventListener;
 import com.android.documentsui.base.Lookup;
+import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
 
 import java.util.ArrayList;
@@ -92,7 +93,9 @@ final class ModelBackedDocumentsAdapter extends DocumentsAdapter {
                         holder = new GridDirectoryHolder(mEnv.getContext(), parent);
                         break;
                     case ITEM_TYPE_DOCUMENT:
-                        holder = new GridDocumentHolder(mEnv.getContext(), parent, mIconHelper);
+                        holder = state.isPhotoPicking()
+                                ? new GridPhotoHolder(mEnv.getContext(), parent, mIconHelper)
+                                : new GridDocumentHolder(mEnv.getContext(), parent, mIconHelper);
                         break;
                     default:
                         throw new IllegalStateException("Unsupported layout type.");
@@ -136,6 +139,9 @@ final class ModelBackedDocumentsAdapter extends DocumentsAdapter {
         }
         holder.setEnabled(enabled);
         holder.setSelected(mEnv.isSelected(modelId), false);
+        holder.bindPreviewIcon(Shared.hasQuickViewer(mEnv.getContext())
+                        && mEnv.getDisplayState().shouldShowPreview() && enabled,
+                view -> mEnv.getActionHandler().previewItem(holder.getItemDetails()));
 
         mEnv.onBindDocumentHolder(holder, cursor);
     }
