@@ -40,7 +40,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toolbar;
-
+import android.view.Window;
 import com.android.documentsui.AbstractActionHandler.CommonAddons;
 import com.android.documentsui.Injector.Injected;
 import com.android.documentsui.NavigationViewManager.Breadcrumb;
@@ -119,7 +119,7 @@ public abstract class BaseActivity
     public void onCreate(Bundle icicle) {
         // Record the time when onCreate is invoked for metric.
         mStartTime = new Date().getTime();
-
+        requestWindowFeature(Window.FEATURE_SWIPE_TO_DISMISS);
         super.onCreate(icicle);
 
         final Intent intent = getIntent();
