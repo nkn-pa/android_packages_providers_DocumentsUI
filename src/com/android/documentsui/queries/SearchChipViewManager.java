@@ -29,6 +29,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.documentsui.IconUtils;
+import com.android.documentsui.MetricConsts;
 import com.android.documentsui.R;
 import com.android.documentsui.base.MimeTypes;
 import com.android.documentsui.base.Shared;
@@ -37,6 +38,7 @@ import com.google.android.material.chip.Chip;
 import com.google.common.primitives.Ints;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -52,10 +54,10 @@ public class SearchChipViewManager {
 
     private static final int CHIP_MOVE_ANIMATION_DURATION = 250;
 
-    private static final int TYPE_IMAGES = 0;
-    private static final int TYPE_DOCUMENTS = 1;
-    private static final int TYPE_AUDIO = 2;
-    private static final int TYPE_VIDEOS = 3;
+    private static final int TYPE_IMAGES = MetricConsts.TYPE_CHIP_IMAGES;;
+    private static final int TYPE_DOCUMENTS = MetricConsts.TYPE_CHIP_DOCS;
+    private static final int TYPE_AUDIO = MetricConsts.TYPE_CHIP_AUDIOS;
+    private static final int TYPE_VIDEOS = MetricConsts.TYPE_CHIP_VIDEOS;
 
     private static final ChipComparator CHIP_COMPARATOR = new ChipComparator();
 
@@ -71,6 +73,8 @@ public class SearchChipViewManager {
     private final ViewGroup mChipGroup;
     private final List<Integer> mDefaultChipTypes = new ArrayList<>();
     private SearchChipViewManagerListener mListener;
+    private String[] mCurrentUpdateMimeTypes;
+    private boolean mIsFirstUpdateChipsReady;
 
     @VisibleForTesting
     Set<SearchChipData> mCheckedChipItems = new HashSet<>();
@@ -194,6 +198,10 @@ public class SearchChipViewManager {
      * @param acceptMimeTypes use this values to filter chips
      */
     public void updateChips(String[] acceptMimeTypes) {
+        if (mIsFirstUpdateChipsReady && Arrays.equals(mCurrentUpdateMimeTypes, acceptMimeTypes)) {
+            return;
+        }
+
         final Context context = mChipGroup.getContext();
         mChipGroup.removeAllViews();
 
@@ -209,6 +217,11 @@ public class SearchChipViewManager {
             }
         }
         reorderCheckedChips(null /* clickedChip */, false /* hasAnim */);
+        mIsFirstUpdateChipsReady = true;
+        mCurrentUpdateMimeTypes = acceptMimeTypes;
+        if (mChipGroup.getChildCount() < 2) {
+            mChipGroup.setVisibility(View.GONE);
+        }
     }
 
 
@@ -258,7 +271,7 @@ public class SearchChipViewManager {
         reorderCheckedChips(chip, true /* hasAnim */);
 
         if (mListener != null) {
-            mListener.onChipCheckStateChanged();
+            mListener.onChipCheckStateChanged(v);
         }
     }
 
@@ -377,7 +390,7 @@ public class SearchChipViewManager {
         /**
          * It will be triggered when the checked state of chips changes.
          */
-        void onChipCheckStateChanged();
+        void onChipCheckStateChanged(View v);
     }
 
     private static class ChipComparator implements Comparator<Chip> {
