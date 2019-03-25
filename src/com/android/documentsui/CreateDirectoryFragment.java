@@ -16,6 +16,8 @@
 
 package com.android.documentsui;
 
+import static android.content.ContentResolver.wrap;
+
 import static com.android.documentsui.base.SharedMinimal.TAG;
 
 import android.app.Dialog;
@@ -27,6 +29,7 @@ import android.content.DialogInterface.OnClickListener;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.FileUtils;
 import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import androidx.annotation.Nullable;
@@ -147,14 +150,14 @@ public class CreateDirectoryFragment extends DialogFragment {
                 client = DocumentsApplication.acquireUnstableProviderOrThrow(
                         resolver, mCwd.derivedUri.getAuthority());
                 final Uri childUri = DocumentsContract.createDocument(
-                        client, mCwd.derivedUri, Document.MIME_TYPE_DIR, mDisplayName);
+                        wrap(client), mCwd.derivedUri, Document.MIME_TYPE_DIR, mDisplayName);
                 DocumentInfo doc = DocumentInfo.fromUri(resolver, childUri);
                 return doc.isDirectory() ? doc : null;
             } catch (Exception e) {
                 Log.w(TAG, "Failed to create directory", e);
                 return null;
             } finally {
-                ContentProviderClient.closeQuietly(client);
+                FileUtils.closeQuietly(client);
             }
         }
 

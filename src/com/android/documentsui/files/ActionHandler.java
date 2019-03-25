@@ -16,14 +16,18 @@
 
 package com.android.documentsui.files;
 
+import static android.content.ContentResolver.wrap;
+
 import static com.android.documentsui.base.SharedMinimal.DEBUG;
 
+import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.FileUtils;
 import android.provider.DocumentsContract;
 import android.text.TextUtils;
 import android.util.Log;
@@ -54,6 +58,7 @@ import com.android.documentsui.base.DocumentStack;
 import com.android.documentsui.base.Features;
 import com.android.documentsui.base.Lookup;
 import com.android.documentsui.base.MimeTypes;
+import com.android.documentsui.base.Providers;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.Shared;
 import com.android.documentsui.base.State;
@@ -174,13 +179,13 @@ public class ActionHandler<T extends FragmentActivity & Addons> extends Abstract
             client = DocumentsApplication.acquireUnstableProviderOrThrow(
                     resolver, document.derivedUri.getAuthority());
             Uri newUri = DocumentsContract.renameDocument(
-                    client, document.derivedUri, name);
+                    wrap(client), document.derivedUri, name);
             return DocumentInfo.fromUri(resolver, newUri);
         } catch (Exception e) {
             Log.w(TAG, "Failed to rename file", e);
             return null;
         } finally {
-            ContentProviderClient.closeQuietly(client);
+            FileUtils.closeQuietly(client);
         }
     }
 
@@ -426,13 +431,22 @@ public class ActionHandler<T extends FragmentActivity & Addons> extends Abstract
             return;
         }
 
+        if (launchToDownloads(intent)) {
+            if (DEBUG) Log.d(TAG, "Launched to a downloads.");
+            return;
+        }
+
         if (DEBUG) Log.d(TAG, "Launching directly into Home directory.");
-        loadHomeDir();
+        launchToDefaultLocation();
     }
 
     @Override
     protected void launchToDefaultLocation() {
-        loadHomeDir();
+        if (mFeatures.isDefaultRootInBrowseEnabled()) {
+            loadHomeDir();
+        } else {
+            loadRecent();
+        }
     }
 
     // If EXTRA_STACK is not null in intent, we'll skip other means of loading
@@ -488,6 +502,17 @@ public class ActionHandler<T extends FragmentActivity & Addons> extends Abstract
             if (DocumentsContract.isDocumentUri(mActivity, uri)) {
                 return launchToDocument(intent.getData());
             }
+        }
+
+        return false;
+    }
+
+    private boolean launchToDownloads(Intent intent) {
+        if (DownloadManager.ACTION_VIEW_DOWNLOADS.equals(intent.getAction())) {
+            Uri uri = DocumentsContract.buildRootUri(Providers.AUTHORITY_DOWNLOADS,
+                    Providers.ROOT_ID_DOWNLOADS);
+            loadRoot(uri);
+            return true;
         }
 
         return false;
