@@ -16,10 +16,8 @@
 
 package com.android.documentsui.dirlist;
 
-import android.graphics.Outline;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewOutlineProvider;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -45,13 +43,6 @@ public class AppsRowManager {
     private final ActionHandler mActionHandler;
     private final List<AppsRowItemData> mDataList;
 
-    private static final ViewOutlineProvider OVAL_OUTLINE_PROVIDER = new ViewOutlineProvider() {
-        @Override
-        public void getOutline(View view, Outline outline) {
-            outline.setOval(0, 0, view.getWidth(), view.getHeight());
-        }
-    };
-
     public AppsRowManager(ActionHandler handler) {
         mDataList = new ArrayList<>();
         mActionHandler = handler;
@@ -69,17 +60,17 @@ public class AppsRowManager {
         return mDataList;
     }
 
-    private boolean shouldShow(State state, boolean isSearching) {
+    private boolean shouldShow(State state) {
         boolean isHiddenAction = state.action == State.ACTION_CREATE
                 || state.action == State.ACTION_OPEN_TREE
                 || state.action == State.ACTION_PICK_COPY_DESTINATION;
-        return state.stack.isRecents() && !isSearching && !isHiddenAction && mDataList.size() > 0;
+        return state.stack.isRecents() && !isHiddenAction && mDataList.size() > 0;
     }
 
     public void updateView(BaseActivity activity) {
         final View appsRowLayout = activity.findViewById(R.id.apps_row);
 
-        if (!shouldShow(activity.getDisplayState(), activity.isSearchExpanded())) {
+        if (!shouldShow(activity.getDisplayState())) {
             appsRowLayout.setVisibility(View.GONE);
             return;
         }
@@ -105,7 +96,5 @@ public class AppsRowManager {
         title.setText(data.getTitle());
         exit_icon.setVisibility(data.showExitIcon() ? View.VISIBLE : View.GONE);
         view.setOnClickListener(v -> data.onClicked());
-
-        app_icon.setOutlineProvider(OVAL_OUTLINE_PROVIDER);
     }
 }
