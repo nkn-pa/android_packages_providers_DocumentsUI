@@ -20,7 +20,7 @@
     android:id="@+id/item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?android:attr/selectableItemBackground"
+    android:background="@drawable/list_item_background"
     android:focusable="true"
     android:orientation="horizontal" >
 
@@ -142,7 +142,7 @@
                 android:layout_height="@dimen/check_icon_size"
                 android:layout_gravity="center"
                 android:scaleType="fitCenter"
-                android:tint="?android:attr/textColorPrimary"
+                android:tint="?android:attr/colorControlNormal"
                 android:src="@drawable/ic_zoom_out"/>
 
         </FrameLayout>

@@ -15,6 +15,9 @@
 -->
 
 <resources xmlns:android="http://schemas.android.com/apk/res/android">
+    <style name="ActionBarTheme" parent="@style/ThemeOverlay.AppCompat.ActionBar">
+        <item name="colorControlNormal">?android:textColorSecondary</item>
+    </style>
 
     <style name="ActionModeStyle" parent="Widget.AppCompat.ActionMode">
         <!-- attr "height" was used by support lib should not in overlay scope -->
@@ -23,7 +26,7 @@
     </style>
 
     <style name="CardViewStyle" parent="@style/Widget.MaterialComponents.CardView">
-        <item name="colorBackgroundFloating">@drawable/grid_item_background</item>
+        <item name="cardBackgroundColor">@color/app_background_color</item>
         <item name="cardPreventCornerOverlap">false</item>
         <item name="cardCornerRadius">@dimen/grid_item_radius</item>
         <item name="cardElevation">@dimen/grid_item_elevation</item>
@@ -35,52 +38,26 @@
         <item name="android:maxHeight">3dp</item>
     </style>
 
-    <style name="SortTitle" parent="@style/TextAppearance.MaterialComponents.Headline6" >
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-        <item name="android:textSize">14sp</item>
-    </style>
-
-    <style name="SearchBarTitle"
-           parent="@style/TextAppearance.Widget.AppCompat.Toolbar.Subtitle">
-        <item name="android:textSize">@dimen/search_bar_text_size</item>
-    </style>
-
-    <style name="InspectorHeaderTitle" parent="@style/TextAppearance.MaterialComponents.Headline6">
-        <item name="android:textColor">?android:attr/textColorSecondary</item>
-    </style>
-
-    <style name="InspectorKeySubTitle" parent="@style/TextAppearance.MaterialComponents.Subtitle1">
-        <item name="android:textColor">?android:attr/textColorSecondary</item>
-    </style>
-
-    <style name="DrawerMenuTitle" parent="@android:style/TextAppearance.Material.Title"/>
-
-    <style name="DrawerMenuPrimary" parent="android:style/TextAppearance.Material.Body2">
-        <item name="android:textColor">@color/item_root_primary_text</item>
-    </style>
-
-    <style name="DrawerMenuSecondary" parent="android:style/TextAppearance.Material.Body2">
-        <item name="android:textSize">13sp</item>
-        <item name="android:textColor">?android:attr/textColorSecondary</item>
-    </style>
-
     <style name="SnackbarButtonStyle" parent="@style/Widget.AppCompat.Button.Borderless">
-        <item name="android:textColor">@color/accent</item>
+        <item name="android:textColor">?android:colorPrimary</item>
     </style>
 
-    <style name="BottomSheetDialogStyle" parent="@style/Theme.MaterialComponents.BottomSheetDialog">
-        <item name="android:colorBackground">@android:color/white</item>
-        <item name="android:textColorPrimary">?android:textColorPrimaryInverse</item>
+    <style name="BottomSheetDialogStyle" parent="@Theme.MaterialComponents.Light.BottomSheetDialog">
+        <item name="android:colorBackground">@color/app_background_color</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">?android:attr/colorBackground</item>
         <item name="android:windowIsFloating">false</item>
         <item name="bottomSheetStyle">@style/BottomSheet</item>
-        <item name="colorControlHighlight">@color/root_focus_color</item>
+        <item name="colorControlHighlight">@color/ripple_material_light</item>
     </style>
 
     <style name="BottomSheet" parent="@style/Widget.Design.BottomSheet.Modal">
         <item name="android:background">@drawable/bottom_sheet_dialog_background</item>
+    </style>
+
+    <style name="OverflowButtonStyle" parent="@style/Widget.AppCompat.ActionButton.Overflow">
+        <item name="android:tint">?android:colorControlNormal</item>
     </style>
 
     <style name="OverflowMenuStyle" parent="@style/Widget.AppCompat.PopupMenu.Overflow">
@@ -89,7 +66,20 @@
         <item name="android:overlapAnchor">false</item>
     </style>
 
-    <style name="SubMenuStyle">
-        <item name="android:textColorSecondary">?android:attr/textColorPrimary</item>
+    <style name="MaterialButton" parent="@style/Widget.MaterialComponents.Button.UnelevatedButton">
+        <item name="android:textAppearance">@style/MaterialButtonTextAppearance</item>
+    </style>
+
+    <style name="MaterialOutlinedButton" parent="@style/Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textAppearance">@style/MaterialButtonTextAppearance</item>
+    </style>
+
+    <style name="DialogTextButton" parent="@style/Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textAppearance">@style/MaterialButtonTextAppearance</item>
+    </style>
+
+    <style name="AlertDialogTheme" parent="@style/ThemeOverlay.AppCompat.Dialog.Alert">
+        <item name="buttonBarPositiveButtonStyle">@style/DialogTextButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/DialogTextButton</item>
     </style>
 </resources>
