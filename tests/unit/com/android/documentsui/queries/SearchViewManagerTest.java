@@ -76,7 +76,7 @@ public final class SearchViewManagerTest {
     private TestHandler mTestHandler;
     private TestMenu mTestMenu;
     private TestMenuItem mSearchMenuItem;
-    private SearchViewManager mSearchViewManager;
+    private TestableSearchViewManager mSearchViewManager;
     private SearchChipViewManager mSearchChipViewManager;
 
     private boolean mListenerOnSearchChangedCalled;
@@ -104,6 +104,14 @@ public final class SearchViewManagerTest {
             @Override
             public void onSearchChipStateChanged(View v) {
             }
+
+            @Override
+            public void onSearchViewFocusChanged(boolean hasFocus) {
+            }
+
+            @Override
+            public void onSearchViewClearClicked() {
+            }
         };
 
         ViewGroup chipGroup = mock(ViewGroup.class);
@@ -113,10 +121,13 @@ public final class SearchViewManagerTest {
 
         mTestMenu = TestMenu.create();
         mSearchMenuItem = mTestMenu.findItem(R.id.option_menu_search);
-        mSearchViewManager.install(mTestMenu, true);
+        mSearchViewManager.install(mTestMenu, true, false);
     }
 
     private static class TestableSearchViewManager extends SearchViewManager {
+
+        private String mHistoryRecorded;
+
         public TestableSearchViewManager(
                 SearchManagerListener listener,
                 EventHandler<String> commandProcessor,
@@ -132,6 +143,15 @@ public final class SearchViewManagerTest {
             TimerTask task = super.createSearchTask(newText);
             TestTimer.Task testTask = new TestTimer.Task(task);
             return testTask;
+        }
+
+        @Override
+        public void recordHistory() {
+            mHistoryRecorded = getCurrentSearch();
+        }
+
+        public String getRecordedHistory() {
+            return mHistoryRecorded;
         }
     }
 
@@ -284,6 +304,15 @@ public final class SearchViewManagerTest {
     }
 
     @Test
+    public void testHistoryRecorded_recordOnQueryTextSubmit() {
+        mSearchViewManager.onClick(null);
+        mSearchViewManager.onQueryTextSubmit("q");
+
+        assertEquals(mSearchViewManager.getCurrentSearch(),
+                mSearchViewManager.getRecordedHistory());
+    }
+
+    @Test
     public void testCheckedChipItems_IsEmptyIfSearchCanceled() throws Exception {
         mSearchViewManager.onClick(null);
         mSearchChipViewManager.mCheckedChipItems = getFakeSearchChipDataList();
@@ -366,7 +395,7 @@ public final class SearchViewManagerTest {
         root.queryArgs = QUERY_ARG_MIME_TYPES;
         DocumentStack stack = new DocumentStack(root, new DocumentInfo());
 
-        mSearchViewManager.install(mTestMenu, true);
+        mSearchViewManager.install(mTestMenu, true, false);
         mSearchViewManager.showMenu(stack);
 
         assertFalse(mSearchMenuItem.isVisible());

@@ -22,16 +22,16 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 
+import androidx.annotation.VisibleForTesting;
+import androidx.fragment.app.Fragment;
+
 import com.android.documentsui.base.DocumentInfo;
-import com.android.documentsui.base.EventListener;
 import com.android.documentsui.base.Menus;
 import com.android.documentsui.base.RootInfo;
 import com.android.documentsui.base.State;
 import com.android.documentsui.dirlist.DirectoryFragment;
 import com.android.documentsui.queries.SearchViewManager;
 import com.android.documentsui.sidebar.RootsFragment;
-import androidx.annotation.VisibleForTesting;
-import androidx.fragment.app.Fragment;
 
 import java.util.List;
 import java.util.function.IntFunction;
@@ -99,6 +99,8 @@ public abstract class MenuManager {
     public void updateSubMenu(Menu menu) {
         updateModePicker(menu.findItem(R.id.sub_menu_grid), menu.findItem(R.id.sub_menu_list));
     }
+
+    public void updateModel(Model model) {}
 
     /**
      * Called when we needs {@link MenuManager} to ask Android to show context menu for us.
@@ -399,7 +401,7 @@ public abstract class MenuManager {
         }
 
         public boolean isInRecents() {
-            return mActivity.getCurrentDirectory() == null;
+            return mActivity.isInRecents();
         }
 
         public boolean canCreateDirectory() {
@@ -407,7 +409,7 @@ public abstract class MenuManager {
         }
 
         public boolean canInspectDirectory() {
-            return mActivity.canInspectDirectory();
+            return mActivity.canInspectDirectory() && !isInRecents();
         }
     }
 }

@@ -27,13 +27,13 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.provider.DocumentsContract;
-import androidx.annotation.CallSuper;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
+
+import androidx.annotation.CallSuper;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 
 import com.android.documentsui.ActionModeController;
 import com.android.documentsui.BaseActivity;
@@ -104,7 +104,7 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
                 mInjector.selectionMgr,
                 mDrawer,
                 this::focusSidebar,
-                getColor(R.color.accent));
+                getColor(R.color.primary));
 
         mInjector.menuManager = new MenuManager(mSearchManager, mState, new DirectoryDetails(this));
 
@@ -343,9 +343,11 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
         // archive files. Note, that picking files inside archives is not supported.
         if (doc.isDirectory()) {
             mInjector.actions.openContainerDocument(doc);
+            mSearchManager.recordHistory();
         } else if (mState.action == ACTION_OPEN || mState.action == ACTION_GET_CONTENT) {
             // Explicit file picked, return
             mInjector.actions.finishPicking(doc.derivedUri);
+            mSearchManager.recordHistory();
         } else if (mState.action == ACTION_CREATE) {
             // Replace selected file
             SaveFragment.get(fm).setReplaceTarget(doc);
@@ -361,6 +363,7 @@ public class PickActivity extends BaseActivity implements ActionHandler.Addons {
                 uris[i] = docs.get(i).derivedUri;
             }
             mInjector.actions.finishPicking(uris);
+            mSearchManager.recordHistory();
         }
     }
 
