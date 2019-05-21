@@ -135,7 +135,7 @@ public abstract class BaseActivity
         // ToDo Create tool to check resource version before applyStyle for the theme
         // If version code is not match, we should reset overlay package to default,
         // in case Activity continueusly encounter resource not found exception
-        getThemedContext().getTheme().applyStyle(R.style.DocumentsDefaultTheme, false);
+        getTheme().applyStyle(R.style.DocumentsDefaultTheme, false);
 
         super.onCreate(icicle);
 
@@ -177,6 +177,12 @@ public abstract class BaseActivity
                 }
 
                 mInjector.actions.loadDocumentsForCurrentStack();
+
+                expandAppBar();
+                DirectoryFragment dir = getDirectoryFragment();
+                if (dir != null) {
+                    dir.scrollToTop();
+                }
             }
 
             @Override
@@ -301,7 +307,8 @@ public abstract class BaseActivity
         getMenuInflater().inflate(R.menu.activity, menu);
         mNavigator.update();
         boolean fullBarSearch = getResources().getBoolean(R.bool.full_bar_search_view);
-        mSearchManager.install(menu, fullBarSearch);
+        boolean showSearchBar = getResources().getBoolean(R.bool.show_search_bar);
+        mSearchManager.install(menu, fullBarSearch, showSearchBar);
 
         final ActionMenuView subMenuView = findViewById(R.id.sub_menu);
         // If size is 0, it means the menu has not inflated and it should only do once.
@@ -729,6 +736,11 @@ public abstract class BaseActivity
     @Override
     public DocumentInfo getCurrentDirectory() {
         return mState.stack.peek();
+    }
+
+    @Override
+    public boolean isInRecents() {
+        return mState.stack.isRecents();
     }
 
     @VisibleForTesting
