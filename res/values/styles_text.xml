@@ -21,6 +21,7 @@
 
     <style name="SortList" parent="@style/TextAppearance.AppCompat.Subhead">
         <item name="android:textColor">@color/sort_list_text</item>
+        <item name="fontFamily">@string/config_fontFamilyMedium</item>
     </style>
 
     <style name="SearchBarTitle" parent="@style/TextAppearance.Widget.AppCompat.Toolbar.Subtitle">
@@ -40,9 +41,17 @@
         <item name="fontFamily">@string/config_fontFamily</item>
     </style>
 
+    <style name="AutoCompleteText" parent="@style/TextAppearance.AppCompat.Medium">
+        <item name="fontFamily">@string/config_fontFamily</item>
+    </style>
+
     <style name="CardPrimaryText" parent="@style/TextAppearance.AppCompat.Subhead">
         <item name="android:textColor">?android:attr/textColorPrimary</item>
         <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="ToolbarTitle" parent="@android:style/TextAppearance.Material.Title">
+        <item name="fontFamily">@string/config_fontFamilyMedium</item>
     </style>
 
     <style name="DrawerMenuTitle" parent="@android:style/TextAppearance.Material.Title">
